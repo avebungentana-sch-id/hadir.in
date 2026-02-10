@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hadir.in - Sistem Manajemen Sekolah</title>
+    
+    <!-- TAILWIND CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FONTAWESOME -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- LIBRARIES -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+    
+    <!-- SUPABASE CLIENT LIBRARY (Added) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* Base Settings */
+        body { 
+            -webkit-tap-highlight-color: transparent; 
+            touch-action: manipulation;
+        }
+        @media screen and (max-width: 768px) {
+            input, select, textarea { font-size: 16px !important; }
+        }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+        
+        .fab {
+            position: fixed; bottom: 24px; right: 24px; z-index: 50;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .fab:active { transform: scale(0.90); }
+        
+        #reader {
+            width: 100%; border-radius: 12px; overflow: hidden; background: #000; position: relative;
+        }
+        #reader video { object-fit: cover; border-radius: 12px; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area {
+                position: absolute; left: 0; top: 0; width: 100%;
+                display: flex !important; justify-content: center; align-items: flex-start; padding-top: 20px;
+            }
+            .no-print { display: none !important; }
+        }
+        
+        .id-card {
+            width: 320px; height: 480px;
+            border: 2px solid #1e3a8a; border-radius: 12px;
+            overflow: hidden; position: relative; background: white;
+            font-family: 'Arial', sans-serif; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .id-header { background-color: #1e40af; color: white; padding: 15px; text-align: center; }
+        .id-photo-placeholder {
+            width: 100px; height: 100px; background-color: #e5e7eb; border-radius: 50%;
+            margin: 20px auto; display: flex; align-items: center; justify-content: center;
+            border: 3px solid #1e40af; overflow: hidden;
+        }
+        .id-photo-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .section-divider { display: flex; align-items: center; margin: 20px 0 10px 0; }
+        .section-divider span { padding-right: 10px; font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+        .section-divider::after { content: ''; flex: 1; height: 1px; background-color: #e2e8f0; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-slate-800 min-h-screen flex flex-col">
+
+    <!-- PRINT CONTAINER -->
+    <div id="printable-area" class="hidden"></div>
+
+    <!-- AUTH SCREEN -->
+    <div id="auth-section" class="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-800 to-slate-900 px-4">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm transform transition-all">
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center justify-center w-20 h-20 bg-blue-50 rounded-full mb-4 ring-4 ring-blue-100">
+                    <i class="fas fa-school text-4xl text-blue-800"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Hadir.in</h1>
+                <p class="text-gray-500 text-sm mt-1">Sistem Absensi & Manajemen Sekolah Digital</p>
+            </div>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1 ml-1">Username / ID</label>
+                    <input type="text" id="login-uid" class="block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 font-semibold" placeholder="Masukkan ID" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1 ml-1">Password</label>
+                    <input type="password" id="login-pass" class="block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500" placeholder="Masukkan Password" required>
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" id="show-pass" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <label for="show-pass" class="ml-2 block text-sm text-gray-900">Tampilkan Password</label>
+                </div>
+                <button type="submit" class="w-full py-3 bg-blue-800 text-white rounded-xl font-bold shadow-lg hover:bg-blue-900 transition">MASUK</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app-section" class="hidden flex-1 flex flex-col relative no-print pb-24 md:pb-0">
+        <!-- Navbar -->
+        <nav class="bg-white shadow-sm sticky top-0 z-40 border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center cursor-pointer" onclick="showDashboard()">
+                        <div class="bg-blue-800 text-white p-2 rounded-lg mr-2 shadow-sm"><i class="fas fa-graduation-cap text-lg"></i></div>
+                        <div><span class="block font-bold text-gray-800 text-lg">Hadir.in</span><span class="block text-[10px] text-gray-500 uppercase hidden sm:block">School System</span></div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="text-right hidden sm:block">
+                            <div id="nav-user-name" class="text-sm font-bold text-gray-900">User</div>
+                            <div id="nav-user-role" class="text-[10px] text-gray-500 uppercase font-semibold bg-gray-100 px-2 rounded-full inline-block">Role</div>
+                        </div>
+                        <button onclick="handleLogout()" class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full"><i class="fas fa-power-off fa-lg"></i></button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- FAB (Hidden for Admin) -->
+        <button id="main-fab" onclick="startScanner('auto')" class="fab bg-blue-600 hover:bg-blue-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg"><i class="fas fa-qrcode text-2xl"></i></button>
+
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div id="dashboard-menu"></div>
+
+            <!-- SETTINGS (ADMIN) -->
+            <div id="admin-settings-view" class="hidden fade-in-up">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="font-bold text-gray-800 flex items-center"><i class="fas fa-cogs mr-2"></i> Pengaturan Sistem</h2>
+                        <button onclick="showDashboard()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times fa-lg"></i></button>
+                    </div>
+                    
+                    <!-- Profil Sekolah -->
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-4">
+                        <h3 class="font-bold text-gray-800 mb-3 text-sm uppercase">Profil Sekolah (Header Laporan)</h3>
+                        <div class="grid grid-cols-1 gap-3">
+                            <input type="text" id="school-name" class="border rounded p-2 text-sm" placeholder="Nama Sekolah (cth: SMA Negeri 1)">
+                            <input type="text" id="school-addr" class="border rounded p-2 text-sm" placeholder="Alamat Sekolah">
+                            <button onclick="saveSchoolConfig()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold w-max">Simpan Profil</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center">
+                        <div><h3 class="font-bold text-blue-800">Simulasi Data</h3><p class="text-xs text-blue-600">Generate data dummy.</p></div>
+                        <div class="flex gap-2">
+                            <button onclick="clearDummyData()" class="bg-white text-blue-600 border border-blue-600 px-3 py-2 rounded-lg text-sm font-bold shadow hover:bg-blue-50">Hapus Dummy</button>
+                            <button onclick="generateDummyData()" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow hover:bg-blue-700">Generate</button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <h3 class="font-bold text-gray-800 mb-2">Backup & Restore</h3>
+                        <div class="flex gap-2">
+                            <button onclick="backupData()" class="bg-gray-700 text-white px-3 py-2 rounded text-sm"><i class="fas fa-download mr-1"></i> Backup</button>
+                            <button onclick="triggerRestore()" class="bg-white border px-3 py-2 rounded text-sm"><i class="fas fa-upload mr-1"></i> Restore</button>
+                            <input type="file" id="restore-file" class="hidden" accept=".json" onchange="restoreData(this)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- USER MANAGEMENT (ADMIN) -->
+            <div id="admin-users-view" class="hidden fade-in-up">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <h2 class="font-bold text-gray-800"><i class="fas fa-users-cog mr-2"></i> Akun Pengguna (Login)</h2>
+                        <button onclick="showDashboard()" class="text-gray-400"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="p-4 bg-gray-50 border-b">
+                        <form id="add-user-form" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <input type="text" id="new-user-uid" placeholder="Username/ID (ex: GURU01)" class="border rounded p-2 text-sm uppercase" required>
+                            <input type="text" id="new-user-name" placeholder="Nama Lengkap" class="border rounded p-2 text-sm" required>
+                            <input type="text" id="new-user-pass" placeholder="Password" class="border rounded p-2 text-sm" required>
+                            <select id="new-user-role" class="border rounded p-2 text-sm bg-white" required>
+                                <option value="guru">Guru</option>
+                                <option value="staf">Staf TU / Piket</option>
+                                <option value="kepsek">Kepala Sekolah</option>
+                                <option value="siswa">Ketua Kelas (Akses Login)</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-gray-500 mb-1">Foto Profil (Opsional)</label>
+                                <input type="file" id="new-user-photo" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                            </div>
+                            <input type="hidden" id="edit-user-mode" value="false">
+                            <button type="submit" id="btn-save-user" class="md:col-span-2 bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700">Simpan User</button>
+                            <button type="button" id="btn-cancel-user" onclick="resetUserForm()" class="hidden md:col-span-2 bg-gray-300 text-gray-700 py-2 rounded font-bold">Batal Edit</button>
+                        </form>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="min-w-full divide-y divide-gray-200" id="users-table">
+                            <thead class="bg-gray-50"><tr><th class="px-4 py-3 text-left text-xs font-bold uppercase">Info User</th><th class="px-4 py-3 text-center text-xs font-bold uppercase">Aksi</th></tr></thead>
+                            <tbody class="bg-white divide-y text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STUDENT MANAGEMENT (ADMIN - NEW) -->
+            <div id="admin-students-view" class="hidden fade-in-up">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <h2 class="font-bold text-gray-800"><i class="fas fa-user-graduate mr-2"></i> Data Siswa (Absensi)</h2>
+                        <button onclick="showDashboard()" class="text-gray-400"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="p-4 bg-gray-50 border-b">
+                        <form id="add-student-form" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input type="text" id="new-student-id" placeholder="NIS/ID Siswa" class="border rounded p-2 text-sm uppercase" required>
+                            <input type="text" id="new-student-name" placeholder="Nama Siswa" class="border rounded p-2 text-sm" required>
+                            <select id="new-student-class" class="border rounded p-2 text-sm bg-white" required>
+                                <!-- Populated by JS -->
+                            </select>
+                            <input type="hidden" id="edit-student-mode" value="false">
+                            <button type="submit" id="btn-save-student" class="md:col-span-3 bg-teal-600 text-white py-2 rounded font-bold hover:bg-teal-700">Simpan Siswa</button>
+                            <button type="button" id="btn-cancel-student" onclick="resetStudentForm()" class="hidden md:col-span-3 bg-gray-300 text-gray-700 py-2 rounded font-bold">Batal Edit</button>
+                        </form>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="min-w-full divide-y divide-gray-200" id="students-table">
+                            <thead class="bg-gray-50"><tr><th class="px-4 py-3 text-left text-xs font-bold uppercase">Data Siswa</th><th class="px-4 py-3 text-center text-xs font-bold uppercase">Aksi</th></tr></thead>
+                            <tbody class="bg-white divide-y text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CLASS MANAGEMENT -->
+            <div id="admin-classes-view" class="hidden fade-in-up">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <h2 class="font-bold text-gray-800"><i class="fas fa-chalkboard mr-2"></i> Data Kelas</h2>
+                        <button onclick="showDashboard()" class="text-gray-400"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="p-4 bg-gray-50 border-b">
+                        <form id="add-class-form" class="flex gap-2">
+                            <input type="text" id="new-class-id" placeholder="ID (ex: X-A)" class="border rounded p-2 text-sm w-1/3 uppercase" required>
+                            <input type="text" id="new-class-name" placeholder="Nama Kelas" class="border rounded p-2 text-sm w-2/3" required>
+                            <input type="hidden" id="edit-class-mode" value="false">
+                            <button type="submit" id="btn-save-class" class="bg-teal-600 text-white px-4 rounded hover:bg-teal-700"><i class="fas fa-save"></i></button>
+                            <button type="button" id="btn-cancel-class" onclick="resetClassForm()" class="hidden bg-gray-300 text-gray-700 px-4 rounded"><i class="fas fa-times"></i></button>
+                        </form>
+                    </div>
+                    <div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200" id="classes-table"><tbody class="bg-white text-sm"></tbody></table></div>
+                </div>
+            </div>
+
+            <!-- SCANNER -->
+            <div id="scanner-view" class="hidden">
+                <div class="max-w-md mx-auto bg-white rounded-2xl shadow-lg border overflow-hidden">
+                    <div class="p-4 border-b flex justify-between items-center bg-gray-50">
+                        <h2 class="font-bold text-gray-800">Scan QR</h2>
+                        <button onclick="stopScannerAndBack()" class="text-red-500 font-bold text-sm">Tutup</button>
+                    </div>
+                    <div class="p-4">
+                        <select id="scan-mode-selector" onchange="changeScanMode(this.value)" class="block w-full mb-4 p-2 border rounded font-bold text-gray-700"></select>
+                        <p id="scan-desc-text" class="text-xs text-center mb-2 p-2 rounded border"></p>
+                        <div id="reader"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MANUAL ATTENDANCE MODAL (PIKET) -->
+            <div id="manual-attendance-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeManualModal()"></div>
+                <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl relative z-10 p-6">
+                    <h3 class="font-bold text-lg mb-4 text-teal-700">Absensi Manual (Tanpa QR)</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Pilih Kelas</label>
+                            <select id="manual-class-select" onchange="populateManualStudents()" class="w-full border rounded p-2"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Pilih Siswa</label>
+                            <select id="manual-student-select" class="w-full border rounded p-2"><option value="">-- Pilih Siswa --</option></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Keterangan</label>
+                            <select id="manual-status" class="w-full border rounded p-2">
+                                <option value="piket_masuk">Hadir (Terlambat/Manual)</option>
+                                <option value="piket_keluar">Izin Keluar</option>
+                                <option value="piket_kembali">Kembali ke Sekolah</option>
+                            </select>
+                        </div>
+                        <button onclick="submitManualAttendance()" class="w-full bg-teal-600 text-white py-2 rounded font-bold hover:bg-teal-700">Simpan Absensi</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- JOURNAL MODAL -->
+            <div id="journal-form-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeJournalModal()"></div>
+                <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl relative z-10 p-6">
+                    <h3 class="font-bold text-lg mb-4">Isi Jurnal</h3>
+                    <form id="journal-form" class="space-y-4">
+                        <input type="text" id="journal-subject" class="w-full border rounded p-2" placeholder="Mata Pelajaran" required>
+                        <textarea id="journal-topic" rows="3" class="w-full border rounded p-2" placeholder="Materi / Aktivitas" required></textarea>
+                        <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded font-bold">Simpan</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- REPORT VIEW -->
+            <div id="report-view" class="hidden fade-in-up">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-20">
+                    <div class="p-4 border-b flex justify-between items-center bg-gray-50">
+                        <h2 class="font-bold text-gray-800"><i class="fas fa-file-alt mr-2"></i> Laporan</h2>
+                        <button onclick="showDashboard()" class="text-sm font-bold text-gray-500">Kembali</button>
+                    </div>
+                    <div class="p-4 bg-gray-50 border-b space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="date" id="filter-start" class="border rounded p-2 text-sm">
+                            <input type="date" id="filter-end" class="border rounded p-2 text-sm">
+                        </div>
+                        <select id="filter-user" class="border rounded p-2 text-sm w-full bg-white"><option value="all">Semua User/Siswa</option></select>
+                        <select id="filter-type" class="border rounded p-2 text-sm w-full bg-white">
+                            <option value="all">Semua Aktivitas</option>
+                            <option value="staf_masuk">Absensi Harian (Staf/Guru)</option>
+                            <option value="jurnal_kelas">Jurnal Kelas</option>
+                            <option value="piket_masuk">Siswa (Masuk/Terlambat)</option>
+                            <option value="piket_keluar">Siswa (Izin Keluar)</option>
+                        </select>
+                        <div class="flex gap-2">
+                            <button onclick="loadReportData()" class="flex-1 bg-blue-600 text-white rounded p-2 text-sm font-bold"><i class="fas fa-search"></i> Cari</button>
+                            <button onclick="exportExcel()" class="bg-green-600 text-white px-3 rounded"><i class="fas fa-file-excel"></i></button>
+                            <button onclick="exportPDF()" class="bg-red-600 text-white px-3 rounded"><i class="fas fa-file-pdf"></i></button>
+                        </div>
+                    </div>
+                    <!-- Admin Bulk Actions -->
+                    <div id="admin-bulk-actions" class="hidden px-4 py-2 bg-yellow-50 border-b flex justify-between items-center">
+                        <span class="text-xs font-bold text-yellow-800">Mode Admin</span>
+                        <button onclick="deleteSelectedLogs()" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded border border-red-200 font-bold">Hapus Pilihan</button>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="min-w-full divide-y divide-gray-200" id="report-table">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-4 py-2 text-center w-8"><input type="checkbox" id="check-all" onclick="toggleCheckAll()"></th>
+                                    <th class="px-4 py-2 text-left text-xs font-bold uppercase">Tanggal</th>
+                                    <th class="px-4 py-2 text-left text-xs font-bold uppercase">Nama</th>
+                                    <th class="px-4 py-2 text-left text-xs font-bold uppercase">Aktivitas</th>
+                                    <th class="px-4 py-2 text-left text-xs font-bold uppercase">Jam Masuk / Ket</th>
+                                    <th class="px-4 py-2 text-left text-xs font-bold uppercase">Jam Pulang / Detail</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y text-xs"></tbody>
+                        </table>
+                    </div>
+                    <div class="p-2 text-xs text-center text-gray-500 bg-gray-50" id="total-rows"></div>
+                </div>
+            </div>
+
+            <!-- QR MODAL -->
+            <div id="qr-modal" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/80" onclick="document.getElementById('qr-modal').classList.add('hidden')"></div>
+                <div class="bg-white rounded-xl p-6 relative z-10 text-center max-w-sm w-full">
+                    <h3 class="font-bold text-lg mb-2">QR Code</h3>
+                    <p id="qr-modal-title" class="text-sm text-gray-500 mb-4 font-mono bg-gray-100 py-1 px-2 rounded inline-block">ID: -</p>
+                    <div class="bg-white p-2 border-2 border-dashed inline-block mb-4"><canvas id="qr-modal-canvas"></canvas></div>
+                    <button onclick="document.getElementById('qr-modal').classList.add('hidden')" class="block w-full bg-gray-200 py-2 rounded font-bold hover:bg-gray-300">Tutup</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const OFFICE_QR_CODE = "KANTOR_PUSAT_SEKOLAH";
+
+        // ================= SUPABASE CONFIGURATION =================
+        const SUPABASE_URL = 'https://exssvcrqtbvzqexqrolw.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_CPWxlm5XsRSrzuAbsyzvUQ_LCDTJcrL';
+        let supabaseClient = null;
+
+        // Initialize if library is loaded
+        if (typeof supabase !== 'undefined') {
+            try {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                console.log('Supabase initialized');
+            } catch (e) {
+                console.warn('Supabase init failed:', e);
+            }
+        }
+
+        // --- IMAGE COMPRESSION ---
+        const compressImage = (file, maxWidth = 300, quality = 0.7) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width, height = img.height;
+                        if (width > maxWidth) { height = Math.round((height * maxWidth) / width); width = maxWidth; }
+                        canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', quality));
+                    };
+                    img.onerror = (err) => reject(err);
+                };
+                reader.onerror = (err) => reject(err);
+            });
+        };
+
+        // --- DATABASE ---
+        const DB = {
+            init: () => {
+                // FORCE ADMIN DEFAULT IF MISSING
+                let users = JSON.parse(localStorage.getItem('users')) || [];
+                const adminIndex = users.findIndex(u => u.uid === 'admin');
+                if (adminIndex === -1) {
+                    users.push({ uid: 'admin', name: 'Administrator', role: 'admin', pass: 'admin123', photo: null });
+                } else {
+                    users[adminIndex].pass = 'admin123';
+                }
+                localStorage.setItem('users', JSON.stringify(users));
+
+                if (!localStorage.getItem('students')) localStorage.setItem('students', JSON.stringify([]));
+                if (!localStorage.getItem('classrooms')) localStorage.setItem('classrooms', JSON.stringify([{ id: 'X-A', name: 'Kelas 10 A' }]));
+                if (!localStorage.getItem('logs')) localStorage.setItem('logs', JSON.stringify([]));
+                if (!localStorage.getItem('school_config')) localStorage.setItem('school_config', JSON.stringify({name: 'SiPintar School', addr: 'Jl. Pendidikan No. 1'}));
+            },
+            // GETTERS
+            getUsers: () => JSON.parse(localStorage.getItem('users')),
+            getStudents: () => JSON.parse(localStorage.getItem('students')),
+            getClasses: () => JSON.parse(localStorage.getItem('classrooms')),
+            getLogs: () => JSON.parse(localStorage.getItem('logs')),
+            getSchoolConfig: () => JSON.parse(localStorage.getItem('school_config')),
+            
+            // FINDERS
+            getUser: (uid) => JSON.parse(localStorage.getItem('users')).find(u => u.uid === uid),
+            getStudent: (id) => JSON.parse(localStorage.getItem('students')).find(s => s.id === id),
+            getClass: (id) => JSON.parse(localStorage.getItem('classrooms')).find(c => c.id === id),
+
+            // SETTERS (ADD/UPDATE)
+            saveSchoolConfig: (data) => localStorage.setItem('school_config', JSON.stringify(data)),
+            
+            saveUser: (user) => {
+                let users = JSON.parse(localStorage.getItem('users'));
+                const idx = users.findIndex(u => u.uid === user.uid);
+                if (idx >= 0) users[idx] = user; // Update
+                else users.push(user); // Insert
+                localStorage.setItem('users', JSON.stringify(users));
+                return true;
+            },
+            
+            saveStudent: (student) => {
+                let students = JSON.parse(localStorage.getItem('students'));
+                const idx = students.findIndex(s => s.id === student.id);
+                if (idx >= 0) students[idx] = student;
+                else students.push(student);
+                localStorage.setItem('students', JSON.stringify(students));
+                return true;
+            },
+
+            saveClass: (cls) => {
+                let classes = JSON.parse(localStorage.getItem('classrooms'));
+                const idx = classes.findIndex(c => c.id === cls.id);
+                if (idx >= 0) classes[idx] = cls;
+                else classes.push(cls);
+                localStorage.setItem('classrooms', JSON.stringify(classes));
+                return true;
+            },
+
+            deleteUser: (uid) => {
+                if(uid === 'admin') return false; // Protect admin
+                let users = JSON.parse(localStorage.getItem('users')).filter(u => u.uid !== uid);
+                localStorage.setItem('users', JSON.stringify(users));
+                return true;
+            },
+            deleteStudent: (id) => {
+                let s = JSON.parse(localStorage.getItem('students')).filter(x => x.id !== id);
+                localStorage.setItem('students', JSON.stringify(s));
+            },
+            deleteClass: (id) => {
+                let c = JSON.parse(localStorage.getItem('classrooms')).filter(x => x.id !== id);
+                localStorage.setItem('classrooms', JSON.stringify(c));
+            },
+
+            addLog: (log) => {
+                const logs = JSON.parse(localStorage.getItem('logs'));
+                log.id = Date.now() + Math.random();
+                logs.unshift(log);
+                localStorage.setItem('logs', JSON.stringify(logs));
+            },
+            deleteLogs: (ids) => {
+                let logs = JSON.parse(localStorage.getItem('logs'));
+                logs = logs.filter(l => !ids.includes(l.id.toString()));
+                localStorage.setItem('logs', JSON.stringify(logs));
+            },
+            bulkInsert: (key, data) => {
+                const current = JSON.parse(localStorage.getItem(key));
+                // simple merge, unique by id/uid
+                const unique = data.filter(d => !current.find(c => (c.uid || c.id) === (d.uid || d.id)));
+                localStorage.setItem(key, JSON.stringify([...unique, ...current]));
+            },
+            clearDummy: () => {
+                // Clean data except admin
+                let users = JSON.parse(localStorage.getItem('users')).filter(u => u.uid === 'admin');
+                localStorage.setItem('users', JSON.stringify(users));
+                localStorage.setItem('students', JSON.stringify([])); 
+                localStorage.setItem('logs', JSON.stringify([])); 
+            }
+        };
+        DB.init();
+
+        let currentUser = null;
+        let html5QrcodeScanner = null;
+        let currentScanMode = '';
+        let currentReportData = [];
+
+        function fillLogin(uid) { /* No-op */ }
+        
+        // --- SHOW PASSWORD TOGGLE ---
+        document.getElementById('show-pass').addEventListener('change', function() {
+            const passInput = document.getElementById('login-pass');
+            if (this.checked) {
+                passInput.type = 'text';
+            } else {
+                passInput.type = 'password';
+            }
+        });
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const uidInput = document.getElementById('login-uid').value.trim();
+            const passInput = document.getElementById('login-pass').value.trim();
+            
+            // Check admin strictly first
+            if (uidInput === 'admin' && passInput === 'admin123') {
+                const adminUser = DB.getUser('admin');
+                currentUser = adminUser;
+                localStorage.setItem('session', JSON.stringify(adminUser));
+                initApp();
+                return;
+            }
+
+            // Normal user check
+            let u = DB.getUser(uidInput);
+            if(!u) u = DB.getUser(uidInput.toUpperCase());
+
+            if (!u) {
+                Swal.fire('Login Gagal', 'User ID tidak ditemukan.', 'error');
+            } else if (u.pass !== passInput) {
+                Swal.fire('Login Gagal', 'Password salah.', 'error');
+            } else {
+                currentUser = u;
+                localStorage.setItem('session', JSON.stringify(u));
+                initApp();
+            }
+        });
+
+        function initApp() {
+            if(localStorage.getItem('session')) currentUser = JSON.parse(localStorage.getItem('session'));
+            if(currentUser) {
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('app-section').classList.remove('hidden');
+                document.getElementById('nav-user-name').innerText = currentUser.name;
+                document.getElementById('nav-user-role').innerText = currentUser.role;
+                
+                const fab = document.getElementById('main-fab');
+                if(currentUser.role === 'admin') fab.classList.add('hidden');
+                else fab.classList.remove('hidden');
+                
+                renderDashboard();
+            }
+        }
+
+        function handleLogout() { localStorage.removeItem('session'); location.reload(); }
+
+        function hideAllViews() {
+            ['dashboard-menu', 'scanner-view', 'report-view', 'admin-users-view', 'admin-students-view', 'admin-classes-view', 'admin-settings-view', 'manual-attendance-modal'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.add('hidden');
+            });
+        }
+        function showDashboard() { hideAllViews(); document.getElementById('dashboard-menu').classList.remove('hidden'); stopScannerAndBack(false); renderDashboard(); }
+        function renderSettings() { 
+            hideAllViews(); 
+            document.getElementById('admin-settings-view').classList.remove('hidden'); 
+            const cfg = DB.getSchoolConfig();
+            document.getElementById('school-name').value = cfg.name;
+            document.getElementById('school-addr').value = cfg.addr;
+        }
+
+        // --- DASHBOARD LOGIC ---
+        function renderDashboard() {
+            const c = document.getElementById('dashboard-menu'); c.innerHTML = '';
+            const r = currentUser.role;
+            const card = (t, i, cl, a, d) => `<div onclick="${a}" class="bg-white p-5 rounded-2xl shadow-sm border cursor-pointer hover:shadow-md transform transition active:scale-95"><div class="flex justify-between"><div><h3 class="font-bold text-gray-800">${t}</h3><p class="text-xs text-gray-500 mt-1">${d}</p></div><div class="w-10 h-10 rounded-full bg-${cl}-100 text-${cl}-600 flex items-center justify-center"><i class="fas ${i}"></i></div></div></div>`;
+            const div = (t) => `<div class="col-span-1 sm:col-span-2 lg:col-span-3 section-divider"><span>${t}</span></div>`;
+            let h = '';
+
+            if(r === 'admin') {
+                h += div('Manajemen Admin');
+                h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+                h += card('Akun Pengguna', 'fa-users', 'blue', "renderUserManagement()", 'Data Guru & Staf');
+                h += card('Data Siswa', 'fa-user-graduate', 'green', "renderStudentManagement()", 'Absensi & QR Siswa');
+                h += card('Data Kelas', 'fa-chalkboard', 'teal', "renderClassManagement()", 'Ruang Kelas');
+                h += card('Laporan', 'fa-file-alt', 'gray', "showReport()", 'Rekap Absensi');
+                h += card('Pengaturan', 'fa-cogs', 'slate', "renderSettings()", 'Profil & Backup');
+                h += `</div>`;
+            } else {
+                if(['kepsek', 'guru', 'staf'].includes(r)) {
+                    h += div('Absensi Pribadi');
+                    h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+                    h += card('Scan Masuk', 'fa-sign-in-alt', 'green', "startScanner('staf_masuk')", 'Absen Datang');
+                    h += card('Scan Pulang', 'fa-sign-out-alt', 'red', "startScanner('staf_pulang')", 'Absen Pulang');
+                    h += card('QR Code Saya', 'fa-qrcode', 'slate', `showQRModal('${currentUser.uid}')`, 'Tampilkan QR Login');
+                    h += `</div>`;
+                }
+                
+                if(r === 'guru') {
+                    h += div('Mengajar');
+                    h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+                    h += card('Jurnal Kelas', 'fa-book-open', 'blue', "startScanner('jurnal')", 'Isi Jurnal');
+                    h += card('Absensi Siswa', 'fa-user-check', 'indigo', "startScanner('absensi_mapel')", 'Cek Kehadiran');
+                    h += `</div>`;
+                }
+
+                if(r === 'staf' || r === 'guru') {
+                    h += div('Tugas Piket');
+                    h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+                    h += card('Siswa Masuk', 'fa-user-clock', 'teal', "startScanner('piket_masuk')", 'Scan Siswa');
+                    h += card('Absensi Manual', 'fa-edit', 'teal', "openManualAttendance()", 'Input Tanpa QR');
+                    h += card('Izin Keluar', 'fa-door-open', 'orange', "startScanner('piket_keluar')", 'Izin Siswa');
+                    h += `</div>`;
+                }
+
+                // FIX FOR KETUA KELAS (SISWA)
+                if(r === 'siswa') {
+                    h += div('Ketua Kelas');
+                    h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+                    h += card('Validasi Guru', 'fa-check-circle', 'purple', "startScanner('konfirmasi')", 'Validasi Guru');
+                    h += `</div>`;
+                }
+
+                if(r === 'kepsek') {
+                    h += div('Laporan');
+                    h += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">`;
+                    h += card('Lihat Laporan', 'fa-chart-pie', 'gray', "showReport()", 'Monitoring');
+                    h += `</div>`;
+                }
+            }
+            c.innerHTML = h;
+        }
+
+        // --- ADMIN: USERS ---
+        function renderUserManagement() {
+            hideAllViews(); document.getElementById('admin-users-view').classList.remove('hidden');
+            const tb = document.querySelector('#users-table tbody'); tb.innerHTML = '';
+            DB.getUsers().forEach(u => {
+                tb.innerHTML += `<tr class="border-b"><td class="px-4 py-3"><div class="font-bold">${u.name}</div><div class="text-xs text-gray-500">${u.uid} | ${u.role.toUpperCase()}</div></td><td class="px-4 py-3 text-center space-x-2"><button onclick="editUser('${u.uid}')" class="text-blue-600"><i class="fas fa-edit"></i></button><button onclick="deleteUser('${u.uid}')" class="text-red-500"><i class="fas fa-trash"></i></button><button onclick="printUserCard('${u.uid}', 'user')" class="text-green-600"><i class="fas fa-print"></i></button></td></tr>`;
+            });
+        }
+        
+        async function handleUserSubmit(e) {
+            e.preventDefault();
+            const photoInput = document.getElementById('new-user-photo');
+            let photoData = null;
+            if(photoInput.files && photoInput.files[0]) photoData = await compressImage(photoInput.files[0]);
+            else if(document.getElementById('edit-user-mode').value === 'true') {
+                const existing = DB.getUser(document.getElementById('new-user-uid').value);
+                if(existing) photoData = existing.photo;
+            }
+
+            const user = {
+                uid: document.getElementById('new-user-uid').value.trim(), 
+                name: document.getElementById('new-user-name').value.trim(),
+                role: document.getElementById('new-user-role').value,
+                pass: document.getElementById('new-user-pass').value.trim(),
+                photo: photoData
+            };
+            
+            DB.saveUser(user);
+            Swal.fire('Sukses', 'Data User Tersimpan', 'success');
+            resetUserForm(); renderUserManagement();
+        }
+        document.getElementById('add-user-form').addEventListener('submit', handleUserSubmit);
+
+        function editUser(uid) {
+            const u = DB.getUser(uid);
+            document.getElementById('new-user-uid').value = u.uid;
+            document.getElementById('new-user-uid').readOnly = true; 
+            document.getElementById('new-user-name').value = u.name;
+            document.getElementById('new-user-pass').value = u.pass;
+            document.getElementById('new-user-role').value = u.role;
+            document.getElementById('edit-user-mode').value = 'true';
+            document.getElementById('btn-save-user').innerText = 'Update User';
+            document.getElementById('btn-cancel-user').classList.remove('hidden');
+            window.scrollTo(0,0);
+        }
+        function resetUserForm() {
+            document.getElementById('add-user-form').reset();
+            document.getElementById('new-user-uid').readOnly = false;
+            document.getElementById('edit-user-mode').value = 'false';
+            document.getElementById('btn-save-user').innerText = 'Simpan User';
+            document.getElementById('btn-cancel-user').classList.add('hidden');
+        }
+        function deleteUser(uid){ if(uid==='admin')return; Swal.fire({title:'Hapus?',icon:'warning',showCancelButton:true,confirmButtonColor:'#d33'}).then(r=>{if(r.isConfirmed){DB.deleteUser(uid);renderUserManagement()}})}
+
+        // --- ADMIN: STUDENTS (NEW) ---
+        function renderStudentManagement() {
+            hideAllViews(); document.getElementById('admin-students-view').classList.remove('hidden');
+            const tb = document.querySelector('#students-table tbody'); tb.innerHTML = '';
+            
+            const clsSel = document.getElementById('new-student-class'); clsSel.innerHTML = '';
+            DB.getClasses().forEach(c => clsSel.add(new Option(c.name, c.id)));
+
+            DB.getStudents().forEach(s => {
+                tb.innerHTML += `<tr class="border-b"><td class="px-4 py-3"><div class="font-bold">${s.name}</div><div class="text-xs text-gray-500">${s.id} | ${s.class_id}</div></td><td class="px-4 py-3 text-center space-x-2"><button onclick="editStudent('${s.id}')" class="text-blue-600"><i class="fas fa-edit"></i></button><button onclick="deleteStudent('${s.id}')" class="text-red-500"><i class="fas fa-trash"></i></button><button onclick="printUserCard('${s.id}', 'student')" class="text-green-600"><i class="fas fa-print"></i></button></td></tr>`;
+            });
+        }
+        document.getElementById('add-student-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const student = {
+                id: document.getElementById('new-student-id').value.trim(),
+                name: document.getElementById('new-student-name').value.trim(),
+                class_id: document.getElementById('new-student-class').value
+            };
+            DB.saveStudent(student);
+            Swal.fire('Sukses', 'Data Siswa Tersimpan', 'success');
+            resetStudentForm(); renderStudentManagement();
+        });
+        function editStudent(id) {
+            const s = DB.getStudent(id);
+            document.getElementById('new-student-id').value = s.id;
+            document.getElementById('new-student-id').readOnly = true;
+            document.getElementById('new-student-name').value = s.name;
+            document.getElementById('new-student-class').value = s.class_id;
+            document.getElementById('edit-student-mode').value = 'true';
+            document.getElementById('btn-save-student').innerText = 'Update Siswa';
+            document.getElementById('btn-cancel-student').classList.remove('hidden');
+            window.scrollTo(0,0);
+        }
+        function resetStudentForm() {
+            document.getElementById('add-student-form').reset();
+            document.getElementById('new-student-id').readOnly = false;
+            document.getElementById('edit-student-mode').value = 'false';
+            document.getElementById('btn-save-student').innerText = 'Simpan Siswa';
+            document.getElementById('btn-cancel-student').classList.add('hidden');
+        }
+        function deleteStudent(id){Swal.fire({title:'Hapus?',icon:'warning',showCancelButton:true,confirmButtonColor:'#d33'}).then(r=>{if(r.isConfirmed){DB.deleteStudent(id);renderStudentManagement()}})}
+
+        // --- ADMIN: CLASSES ---
+        function renderClassManagement() {
+            hideAllViews(); document.getElementById('admin-classes-view').classList.remove('hidden');
+            const tb = document.querySelector('#classes-table tbody'); tb.innerHTML = '';
+            DB.getClasses().forEach(c => tb.innerHTML += `<tr class="border-b"><td class="px-4 py-3">${c.id}</td><td class="px-4 py-3">${c.name}</td><td class="px-4 py-3 text-center space-x-2"><button onclick="editClass('${c.id}')" class="text-blue-600"><i class="fas fa-edit"></i></button><button onclick="deleteClass('${c.id}')" class="text-red-500"><i class="fas fa-trash"></i></button><button onclick="showQRModal('${c.id}')" class="text-green-600"><i class="fas fa-eye"></i></button></td></tr>`);
+        }
+        document.getElementById('add-class-form').addEventListener('submit', (e)=>{
+            e.preventDefault();
+            DB.saveClass({id:document.getElementById('new-class-id').value.toUpperCase(), name:document.getElementById('new-class-name').value});
+            resetClassForm(); renderClassManagement();
+        });
+        function editClass(id) {
+            const c = DB.getClass(id);
+            document.getElementById('new-class-id').value = c.id;
+            document.getElementById('new-class-id').readOnly = true;
+            document.getElementById('new-class-name').value = c.name;
+            document.getElementById('btn-cancel-class').classList.remove('hidden');
+        }
+        function resetClassForm() {
+            document.getElementById('add-class-form').reset();
+            document.getElementById('new-class-id').readOnly = false;
+            document.getElementById('btn-cancel-class').classList.add('hidden');
+        }
+        function deleteClass(id){Swal.fire({title:'Hapus?',icon:'warning',showCancelButton:true,confirmButtonColor:'#d33'}).then(r=>{if(r.isConfirmed){DB.deleteClass(id);renderClassManagement()}})}
+
+        // --- PIKET: MANUAL ATTENDANCE ---
+        function openManualAttendance() {
+            document.getElementById('manual-attendance-modal').classList.remove('hidden');
+            const cs = document.getElementById('manual-class-select'); cs.innerHTML = '<option value="">-- Pilih Kelas --</option>';
+            DB.getClasses().forEach(c => cs.add(new Option(c.name, c.id)));
+        }
+        function closeManualModal() { document.getElementById('manual-attendance-modal').classList.add('hidden'); }
+        
+        function populateManualStudents() {
+            const cid = document.getElementById('manual-class-select').value;
+            const ss = document.getElementById('manual-student-select'); ss.innerHTML = '<option value="">-- Pilih Siswa --</option>';
+            if(cid) {
+                const studs = DB.getStudents().filter(s => s.class_id === cid);
+                studs.forEach(s => ss.add(new Option(s.name, s.id)));
+            }
+        }
+        function submitManualAttendance() {
+            const sid = document.getElementById('manual-student-select').value;
+            const status = document.getElementById('manual-status').value;
+            if(!sid) return Swal.fire('Error', 'Pilih siswa dulu', 'error');
+            
+            const student = DB.getStudent(sid);
+            DB.addLog({
+                timestamp: new Date().toISOString(),
+                type: status,
+                user_id: student.id,
+                user_name: student.name,
+                verified_by: `${currentUser.name} (Manual)`
+            });
+            Swal.fire('Sukses', 'Absensi tercatat', 'success');
+            closeManualModal();
+        }
+
+        // --- SCANNER LOGIC (UPDATED FOR STUDENTS/USERS) ---
+        function startScanner(mode) {
+            hideAllViews(); document.getElementById('scanner-view').classList.remove('hidden');
+            const s = document.getElementById('scan-mode-selector'); s.innerHTML = '';
+            
+            const ops = [
+                {v:'staf_masuk',t:'Absen Masuk (Staf)',r:['guru','staf','kepsek']},
+                {v:'staf_pulang',t:'Absen Pulang (Staf)',r:['guru','staf','kepsek']},
+                {v:'jurnal',t:'Jurnal Kelas',r:['guru']},
+                {v:'absensi_mapel',t:'Absen Siswa (Mapel)',r:['guru']},
+                {v:'piket_masuk',t:'Siswa Terlambat',r:['guru','staf']},
+                {v:'piket_keluar',t:'Izin Keluar',r:['guru','staf']},
+                {v:'konfirmasi',t:'Validasi Guru',r:['siswa']}
+            ];
+            ops.forEach(o => { if(o.r.includes(currentUser.role)) s.add(new Option(o.t, o.v)); });
+
+            currentScanMode = mode === 'auto' ? (s.options.length ? s.options[0].value : '') : mode;
+            s.value = currentScanMode;
+
+            if(!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
+            html5QrcodeScanner.start({facingMode:"environment"},{fps:10,qrbox:250}, onScanSuccess).catch(()=>Swal.fire('Error','Kamera error','error'));
+        }
+        function changeScanMode(v) { currentScanMode = v; }
+        function stopScannerAndBack(b=true) { if(html5QrcodeScanner) html5QrcodeScanner.stop().then(()=>{html5QrcodeScanner.clear();if(b)showDashboard()}); else if(b) showDashboard(); }
+
+        function onScanSuccess(txt) {
+            html5QrcodeScanner.pause();
+            const ts = new Date().toISOString();
+            
+            // 1. Staff Attendance (Check USERS DB)
+            if(['staf_masuk','staf_pulang'].includes(currentScanMode)) {
+                if(txt === OFFICE_QR_CODE) {
+                    DB.addLog({timestamp:ts, type:currentScanMode, user_id:currentUser.uid, user_name:currentUser.name, verified_by:'SYSTEM'});
+                    Swal.fire('Sukses', 'Absensi Tercatat', 'success').then(()=>stopScannerAndBack());
+                } else Swal.fire('Error', 'QR Salah', 'error').then(()=>html5QrcodeScanner.resume());
+            } 
+            // 2. Class Journal
+            else if (currentScanMode === 'jurnal') {
+                const c = DB.getClass(txt);
+                if(c) {
+                    stopScannerAndBack(false); document.getElementById('scanner-view').classList.add('hidden');
+                    const f = document.getElementById('journal-form'); f.dataset.cid = c.id; f.dataset.cn = c.name;
+                    document.getElementById('journal-form-modal').classList.remove('hidden');
+                } else Swal.fire('Error','Kelas tak ditemukan','error').then(()=>html5QrcodeScanner.resume());
+            } 
+            // 3. Student Attendance (Check STUDENTS DB)
+            else if (['piket_masuk','piket_keluar','absensi_mapel'].includes(currentScanMode)) {
+                const s = DB.getStudent(txt);
+                if(s) {
+                    DB.addLog({timestamp:ts, type:currentScanMode, user_id:s.id, user_name:s.name, verified_by:currentUser.name});
+                    Swal.fire('Sukses', `${s.name} Tercatat`, 'success').then(()=>html5QrcodeScanner.resume());
+                } else {
+                    Swal.fire('Error', 'Siswa tidak ditemukan', 'error').then(()=>html5QrcodeScanner.resume());
+                }
+            }
+            // 4. Konfirmasi Guru (Ketua Kelas Check Users DB)
+            else if (currentScanMode === 'konfirmasi') {
+                const u = DB.getUser(txt);
+                if(u && u.role === 'guru') {
+                    DB.addLog({timestamp:ts, type:currentScanMode, user_id:u.uid, user_name:u.name, verified_by:currentUser.name});
+                    Swal.fire('Sukses', 'Kehadiran Guru Valid', 'success').then(()=>html5QrcodeScanner.resume());
+                } else {
+                    Swal.fire('Error', 'Bukan QR Guru', 'error').then(()=>html5QrcodeScanner.resume());
+                }
+            }
+        }
+
+        document.getElementById('journal-form').addEventListener('submit', (e)=>{
+            e.preventDefault();
+            const f = e.target;
+            DB.addLog({timestamp:new Date().toISOString(), type:'jurnal_kelas', user_id:currentUser.uid, user_name:currentUser.name, subject:document.getElementById('journal-subject').value, description:document.getElementById('journal-topic').value, location_name:f.dataset.cn});
+            closeJournalModal(); Swal.fire('Sukses','Jurnal tersimpan','success').then(()=>showDashboard());
+        });
+        function closeJournalModal(){document.getElementById('journal-form-modal').classList.add('hidden');document.getElementById('journal-form').reset();}
+
+        // --- SETTINGS (SCHOOL CONFIG & DUMMY) ---
+        function saveSchoolConfig() {
+            DB.saveSchoolConfig({
+                name: document.getElementById('school-name').value,
+                addr: document.getElementById('school-addr').value
+            });
+            Swal.fire('Sukses', 'Profil tersimpan', 'success');
+        }
+        function clearDummyData() {
+            DB.clearDummy();
+            Swal.fire('Sukses', 'Data dummy dihapus (Admin & Config aman)', 'success');
+        }
+        function generateDummyData() {
+            Swal.fire({title:'Generating...',didOpen:()=>Swal.showLoading()});
+            setTimeout(()=>{
+                const users = [
+                    {uid:'KEPALA01',name:'Dr. Sutomo',role:'kepsek',pass:'123456'},
+                    {uid:'STAF01',name:'Siti Aminah',role:'staf',pass:'123456'},
+                    {uid:'GURU01',name:'Budi Santoso',role:'guru',pass:'123456'},
+                    {uid:'KETUA01',name:'Andi (Ketua Kelas)',role:'siswa',pass:'123456'}
+                ];
+                DB.bulkInsert('users', users);
+                
+                const students = [];
+                for(let i=1;i<=10;i++) students.push({id:`S0${i}`, name:`Siswa ${i}`, class_id:'X-A'});
+                DB.bulkInsert('students', students);
+
+                const logs = [];
+                const now = new Date();
+                // Simple logs for last 3 days
+                for(let i=0; i<3; i++) {
+                    const d = new Date(); d.setDate(d.getDate()-i);
+                    logs.push({id:Date.now()+i, timestamp:d.toISOString(), type:'staf_masuk', user_id:'GURU01', user_name:'Budi Santoso'});
+                }
+                DB.bulkInsert('logs', logs);
+                Swal.fire('Sukses','Data dummy dibuat','success');
+            }, 500);
+        }
+
+        // --- REPORTING ---
+        function showReport() {
+            hideAllViews(); document.getElementById('report-view').classList.remove('hidden');
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('filter-start').value = today; document.getElementById('filter-end').value = today;
+            
+            const uSel = document.getElementById('filter-user'); uSel.innerHTML='<option value="all">Semua User/Siswa</option>';
+            // Merge users and students for filter list
+            const allPeople = [...DB.getUsers(), ...DB.getStudents()];
+            allPeople.sort((a,b)=>a.name.localeCompare(b.name)).forEach(u=>uSel.add(new Option(u.name, u.uid || u.id)));
+            
+            if(currentUser.role === 'admin') document.getElementById('admin-bulk-actions').classList.remove('hidden');
+            else document.getElementById('admin-bulk-actions').classList.add('hidden');
+            
+            loadReportData();
+        }
+
+        function loadReportData() {
+            const start = new Date(document.getElementById('filter-start').value);
+            const end = new Date(document.getElementById('filter-end').value);
+            end.setHours(23,59,59); start.setHours(0,0,0);
+            const uid = document.getElementById('filter-user').value;
+            const type = document.getElementById('filter-type').value;
+
+            let logs = DB.getLogs().filter(l => {
+                const d = new Date(l.timestamp);
+                return d >= start && d <= end && (uid === 'all' || l.user_id === uid);
+            });
+
+            // Process merging
+            let finalData = [];
+            const attendanceMap = {}; 
+
+            logs.forEach(l => {
+                const date = l.timestamp.split('T')[0];
+                const key = `${l.user_id}_${date}`;
+
+                if(l.type === 'staf_masuk' || l.type === 'staf_pulang') {
+                    if(!attendanceMap[key]) {
+                        attendanceMap[key] = {
+                            id: key, 
+                            timestamp: l.timestamp,
+                            user_name: l.user_name,
+                            type: 'Absensi Harian',
+                            time_in: '-', time_out: '-', ids: []
+                        };
+                        finalData.push(attendanceMap[key]);
+                    }
+                    if(l.type === 'staf_masuk') attendanceMap[key].time_in = new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    if(l.type === 'staf_pulang') attendanceMap[key].time_out = new Date(l.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    attendanceMap[key].ids.push(l.id);
+                } else {
+                    finalData.push(l);
+                }
+            });
+
+            if(type !== 'all') {
+                if(type === 'staf_masuk') finalData = finalData.filter(d => d.type === 'Absensi Harian');
+                else finalData = finalData.filter(d => d.type === type);
+            }
+            
+            currentReportData = finalData.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+            renderReportTable();
+        }
+
+        function renderReportTable() {
+            const tb = document.querySelector('#report-table tbody'); tb.innerHTML = '';
+            document.getElementById('total-rows').innerText = `Total: ${currentReportData.length} baris`;
+            
+            if(!currentReportData.length) { tb.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-400">Tidak ada data</td></tr>'; return; }
+
+            currentReportData.forEach(d => {
+                let col1 = '', col2 = '';
+                let badge = 'bg-gray-100 text-gray-600';
+
+                if(d.type === 'Absensi Harian') {
+                    badge = 'bg-purple-100 text-purple-700';
+                    col1 = d.time_in; col2 = d.time_out;
+                } else if(d.type === 'jurnal_kelas') {
+                    badge = 'bg-blue-100 text-blue-700';
+                    col1 = d.location_name; col2 = `<b>${d.subject}</b>: ${d.description}`;
+                } else {
+                    if(d.type.includes('masuk')) badge = 'bg-green-100 text-green-700';
+                    if(d.type.includes('keluar')) badge = 'bg-red-100 text-red-700';
+                    col1 = new Date(d.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    col2 = d.verified_by || '-';
+                }
+
+                const val = d.ids ? d.ids.join(',') : d.id;
+                const chk = currentUser.role === 'admin' ? `<input type="checkbox" class="row-chk" value="${val}">` : '';
+
+                tb.innerHTML += `<tr class="border-b hover:bg-gray-50">
+                    <td class="text-center py-2">${chk}</td>
+                    <td class="px-4 py-2">${new Date(d.timestamp).toLocaleDateString()}</td>
+                    <td class="px-4 py-2 font-medium">${d.user_name}</td>
+                    <td class="px-4 py-2"><span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${badge}">${d.type.replace('_',' ')}</span></td>
+                    <td class="px-4 py-2 text-xs">${col1}</td>
+                    <td class="px-4 py-2 text-xs text-gray-600 truncate max-w-[200px]">${col2}</td>
+                </tr>`;
+            });
+        }
+
+        // --- UTILS & PRINT ---
+        function backupData() {
+            const d = {users:DB.getUsers(), students:DB.getStudents(), classes:DB.getClasses(), logs:DB.getLogs(), conf:DB.getSchoolConfig()};
+            const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(d));
+            a.download = "backup_sipintar.json"; a.click();
+        }
+        function triggerRestore(){document.getElementById('restore-file').click()}
+        function restoreData(i){
+            const f = i.files[0]; if(!f) return;
+            const r = new FileReader(); r.onload=e=>{
+                try { const d = JSON.parse(e.target.result); 
+                    if(d.users) localStorage.setItem('users',JSON.stringify(d.users)); 
+                    if(d.students) localStorage.setItem('students',JSON.stringify(d.students));
+                    if(d.conf) localStorage.setItem('school_config',JSON.stringify(d.conf));
+                    Swal.fire('Sukses','Data restore','success').then(()=>location.reload()); 
+                } catch(e){Swal.fire('Error','File invalid','error')}
+            }; r.readAsText(f);
+        }
+        function resetSystem(){Swal.fire({title:'Reset?',icon:'warning',showCancelButton:true,confirmButtonColor:'#d33'}).then(r=>{if(r.isConfirmed){localStorage.clear();location.reload()}})}
+        function toggleCheckAll() { document.querySelectorAll('.row-chk').forEach(c => c.checked = document.getElementById('check-all').checked); }
+        function deleteSelectedLogs() {
+            const chks = document.querySelectorAll('.row-chk:checked');
+            if(!chks.length) return Swal.fire('Info','Pilih data dulu','info');
+            Swal.fire({title:'Hapus?',icon:'warning',showCancelButton:true,confirmButtonColor:'#d33'}).then(r=>{
+                if(r.isConfirmed) {
+                    let ids = [];
+                    chks.forEach(c => { if(c.value.includes(',')) ids.push(...c.value.split(',')); else ids.push(c.value); });
+                    DB.deleteLogs(ids); loadReportData();
+                }
+            });
+        }
+
+        function exportExcel() {
+            const data = currentReportData.map(d => ({
+                Tanggal: new Date(d.timestamp).toLocaleDateString(),
+                Nama: d.user_name,
+                Aktivitas: d.type,
+                Info_1: d.type === 'Absensi Harian' ? d.time_in : (d.type === 'jurnal_kelas' ? d.location_name : new Date(d.timestamp).toLocaleTimeString()),
+                Info_2: d.type === 'Absensi Harian' ? d.time_out : (d.type === 'jurnal_kelas' ? `${d.subject} - ${d.description}` : d.verified_by)
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Laporan");
+            XLSX.writeFile(wb, "Laporan_SiPintar.xlsx");
+        }
+
+        function exportPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const conf = DB.getSchoolConfig();
+            
+            doc.setFontSize(16); doc.text(conf.name, 14, 15);
+            doc.setFontSize(10); doc.text(conf.addr, 14, 22);
+            doc.text(`Laporan: ${document.getElementById('filter-start').value} s/d ${document.getElementById('filter-end').value}`, 14, 28);
+            
+            doc.autoTable({
+                head: [["Tanggal", "Nama", "Tipe", "Info 1", "Info 2"]],
+                body: currentReportData.map(d => {
+                    let c1 = d.type === 'Absensi Harian' ? d.time_in : (d.type==='jurnal_kelas'?d.location_name:new Date(d.timestamp).toLocaleTimeString());
+                    let c2 = d.type === 'Absensi Harian' ? d.time_out : (d.type==='jurnal_kelas'?d.subject:d.verified_by);
+                    return [new Date(d.timestamp).toLocaleDateString(), d.user_name, d.type, c1, c2];
+                }),
+                startY: 35
+            });
+            doc.save("Laporan.pdf");
+        }
+
+        function printOfficeQR() {
+            document.getElementById('printable-area').innerHTML = `<div class="id-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center"><h2 style="font-size:24px;margin-bottom:20px">QR ABSENSI KANTOR</h2><canvas id="p-cvs"></canvas></div>`;
+            new QRious({element:document.getElementById('p-cvs'),value:OFFICE_QR_CODE,size:200}); setTimeout(()=>window.print(),500);
+        }
+        function printUserCard(id, type) {
+            let u = type === 'user' ? DB.getUser(id) : DB.getStudent(id);
+            const imgHtml = (u.photo) ? `<img src="${u.photo}">` : '<i class="fas fa-user fa-3x text-gray-400"></i>';
+            const role = type === 'user' ? u.role.toUpperCase() : 'SISWA';
+            document.getElementById('printable-area').innerHTML = `<div class="id-card"><div class="id-header"><h2>KARTU ID</h2></div><div class="id-photo-placeholder">${imgHtml}</div><div style="text-align:center;padding:20px"><h3>${u.name}</h3><p>${role}</p><div style="display:flex;justify-content:center;margin:20px 0"><canvas id="u-cvs"></canvas></div><p>${id}</p></div></div>`;
+            new QRious({element:document.getElementById('u-cvs'),value:id,size:130}); setTimeout(()=>window.print(),500);
+        }
+        function showQRModal(t){document.getElementById('qr-modal').classList.remove('hidden');document.getElementById('qr-modal-title').innerText=t;new QRious({element:document.getElementById('qr-modal-canvas'),value:t,size:200})}
+        
+        window.onload = initApp;
+    </script>
+</body>
+</html>
