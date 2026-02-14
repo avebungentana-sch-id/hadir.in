@@ -57,11 +57,6 @@
                 height: 277mm; /* Tinggi A4 */
                 width: 190mm;  /* Lebar A4 minus margin */
             }
-            /* ID Card override jika cetak ID Card (Portrait mode) */
-            .id-card-print-mode .print-page {
-                 height: 270mm;
-            }
-            
             .id-card-wrapper {
                 display: flex;
                 justify-content: center;
@@ -69,9 +64,6 @@
             }
             /* Desain ID Card Profesional */
             .id-card {
-                width: 86mm; /* Standar ID Card Landscape diputar atau Portrait 54x86 */
-                height: 54mm; 
-                /* Kita gunakan Portrait fisik 54mm x 86mm */
                 width: 54mm;
                 height: 86mm;
                 border: 1px solid #e2e8f0;
@@ -214,6 +206,7 @@
                     <i class="fa-solid fa-school"></i> Hadir.in
                 </div>
                 <div class="flex gap-4">
+                    <button onclick="App.nav.renderUserDashboard()" class="text-white" title="Home"><i class="fa-solid fa-house text-xl"></i></button>
                     <button onclick="App.ui.toggleProfile()" class="text-white"><i class="fa-solid fa-qrcode text-2xl"></i></button>
                     <button onclick="App.auth.logout()" class="text-white"><i class="fa-solid fa-right-from-bracket text-xl"></i></button>
                 </div>
@@ -461,7 +454,7 @@
                         menuHtml = `<button onclick="App.scanner.start('validate_guru')" class="bg-purple-600 text-white p-6 rounded-xl shadow-lg col-span-2"><i class="fa fa-chalkboard-user text-2xl"></i><br>Scan Konfirmasi Guru</button>`;
                     }
                     
-                    area.innerHTML = `<div class="max-w-4xl mx-auto"><div class="bg-white p-6 rounded-xl shadow-sm mb-6"><div><h2 class="text-2xl font-bold">Halo, ${u.name}</h2></div></div>${statsHtml}<div class="grid grid-cols-2 md:grid-cols-4 gap-4">${menuHtml}<button onclick="App.ui.toggleProfile()" class="bg-blue-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-qrcode text-2xl"></i><br>ID Saya</button></div>${u.role!=='admin' && u.role!=='ketua_kelas' ? `<div class="mt-8"><h3 class="font-bold mb-4">Riwayat Izin Saya</h3>${App.views.renderMyPermissions()}</div>`:''}</div>`;
+                    area.innerHTML = `<div class="max-w-4xl mx-auto"><div class="bg-white p-6 rounded-xl shadow-sm mb-6 flex items-center justify-between"><div><h2 class="text-2xl font-bold">Halo, ${u.name}</h2></div></div>${statsHtml}<div class="grid grid-cols-2 md:grid-cols-4 gap-4">${menuHtml}<button onclick="App.ui.toggleProfile()" class="bg-blue-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-qrcode text-2xl"></i><br>ID Saya</button></div>${u.role!=='admin' && u.role!=='ketua_kelas' ? `<div class="mt-8"><h3 class="font-bold mb-4">Riwayat Izin Saya</h3>${App.views.renderMyPermissions()}</div>`:''}</div>`;
                 }
             },
             views: {
@@ -582,10 +575,18 @@
                         const logs = DB.get('logs').filter(l => roleFilter === 'siswa' ? l.role === 'siswa' : l.role !== 'siswa');
                         const grouped = App.views.groupLogs(logs);
                         App.state.currentReportData = Object.values(grouped);
-                        html = `<thead class="bg-gray-100"><tr><th class="p-3 w-10 text-center"><input type="checkbox" onchange="document.querySelectorAll('.report-chk').forEach(c=>c.checked=this.checked)"></th><th class="p-3">Tanggal</th><th class="p-3">Nama</th><th class="p-3">Kelas/Role</th><th class="p-3">Masuk</th><th class="p-3">Pulang</th><th class="p-3">Status</th></tr></thead><tbody>${App.state.currentReportData.map(r => { 
-                            const student = DB.get('students').find(s => s.name === r.name);
-                            const cls = student ? DB.get('classes').find(c=>c.id==student.classId)?.name : (r.role||'-');
-                            return `<tr><td class="p-3 text-center"><input type="checkbox" class="report-chk" value='${JSON.stringify(r.ids)}'></td><td class="p-3">${r.date}</td><td class="p-3 font-bold">${r.name}</td><td class="p-3 uppercase text-xs">${cls}</td><td class="p-3 text-green-700 font-mono">${r.in}</td><td class="p-3 text-blue-700 font-mono">${r.out}</td><td class="p-3"><span class="${r.status==='LATE'?'text-red-600':'text-green-600'} font-bold">${r.status}</span></td></tr>` }).join('')}</tbody>`;
+                        html = `<thead class="bg-gray-100"><tr><th class="p-3 w-10 text-center"><input type="checkbox" onchange="document.querySelectorAll('.report-chk').forEach(c=>c.checked=this.checked)"></th><th class="p-3">Tanggal</th><th class="p-3">Nama</th><th class="p-3">${roleFilter === 'siswa' ? 'Kelas' : 'Jabatan'}</th><th class="p-3">Masuk</th><th class="p-3">Pulang</th><th class="p-3">Status</th></tr></thead><tbody>${App.state.currentReportData.map(r => { 
+                            let identity = '-';
+                            if (roleFilter === 'siswa') {
+                                const student = DB.get('students').find(s => s.name === r.name);
+                                const cls = student ? DB.get('classes').find(c=>c.id==student.classId) : null;
+                                identity = cls ? cls.name : '-';
+                            } else {
+                                // Map role codes to nice labels
+                                const roleMap = { 'guru': 'Guru', 'staf': 'Staf', 'kepsek': 'Kepala Sekolah', 'ketua_kelas': 'Ketua Kelas', 'admin': 'Admin' };
+                                identity = roleMap[r.role] || r.role.toUpperCase();
+                            }
+                            return `<tr><td class="p-3 text-center"><input type="checkbox" class="report-chk" value='${JSON.stringify(r.ids)}'></td><td class="p-3">${r.date}</td><td class="p-3 font-bold">${r.name}</td><td class="p-3 uppercase text-xs">${identity}</td><td class="p-3 text-green-700 font-mono">${r.in}</td><td class="p-3 text-blue-700 font-mono">${r.out}</td><td class="p-3"><span class="${r.status==='LATE'?'text-red-600':'text-green-600'} font-bold">${r.status}</span></td></tr>` }).join('')}</tbody>`;
                     
                     } else if (type === 'izin') {
                         // Added Fix: use r.createdAt for "Waktu Input"
@@ -753,7 +754,7 @@
                 printRekap() {
                     const content = document.getElementById('report-table').outerHTML;
                     const title = "Rekap Absensi Periode " + document.getElementById('rekap-month').value;
-                    const config = DB.get('config') || { schoolName: 'Sekolah', address: '-' };
+                    const config = DB.get('config')[0] || { schoolName: 'Sekolah' };
                     const win = window.open('', '', 'width=1123,height=794'); // Landscape Approx
                     win.document.write(`<html><head><title>${title}</title><script src="https://cdn.tailwindcss.com"><\/script></head><body class="p-8">
                         <div class="text-center border-b-2 border-black pb-4 mb-6">
@@ -889,7 +890,7 @@
                         if(exists) { Swal.fire('Info', 'Sudah Pulang', 'info'); return; }
                     }
 
-                    DB.add('logs', { timestamp: now.toISOString(), date: today, name: text, role: 'unknown', type: type, status: status });
+                    DB.add('logs', { timestamp: now.toISOString(), date: today, name: text, role: 'unknown', type: type, status: status, userId: text });
                     Swal.fire('Success', type, 'success');
                 }
             },
