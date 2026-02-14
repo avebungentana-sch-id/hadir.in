@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hadir.in - Sistem Manajemen Sekolah</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Styles -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        
+        /* --- PRINT STYLES --- */
+        @media print {
+            @page {
+                size: A4 portrait; /* Portrait untuk ID Card agar muat 6 */
+                margin: 0;
+            }
+            body > *:not(#print-area) { display: none !important; }
+            #print-area {
+                display: block !important;
+                position: relative !important;
+                width: 100%;
+                height: 100%;
+                background: white;
+                padding: 10mm;
+                margin: 0;
+                box-sizing: border-box;
+            }
+            /* Grid 2x3 untuk ID Card */
+            .print-page {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-rows: repeat(3, 1fr);
+                gap: 5mm;
+                page-break-after: always;
+                justify-items: center;
+                align-items: center;
+                height: 277mm; /* Tinggi A4 */
+                width: 190mm;  /* Lebar A4 minus margin */
+            }
+            /* ID Card override jika cetak ID Card (Portrait mode) */
+            .id-card-print-mode .print-page {
+                 height: 270mm;
+            }
+            
+            .id-card-wrapper {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            /* Desain ID Card Profesional */
+            .id-card {
+                width: 86mm; /* Standar ID Card Landscape diputar atau Portrait 54x86 */
+                height: 54mm; 
+                /* Kita gunakan Portrait fisik 54mm x 86mm */
+                width: 54mm;
+                height: 86mm;
+                border: 1px solid #e2e8f0;
+                position: relative;
+                overflow: hidden;
+                background: white;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                border-radius: 8px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            .id-header {
+                width: 100%;
+                height: 25mm;
+                background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+                border-bottom-left-radius: 50%;
+                border-bottom-right-radius: 50%;
+                position: absolute;
+                top: -8mm;
+                left: 0;
+                z-index: 0;
+            }
+            .id-content {
+                z-index: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 100%;
+                padding-top: 10mm;
+            }
+            .office-qr-page {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 90vh;
+                text-align: center;
+                border: 4px solid #1e3a8a;
+                padding: 20px;
+                margin: 20px;
+            }
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 900: '#1e3a8a' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="text-slate-800">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-view" class="min-h-screen flex items-center justify-center bg-brand-900 bg-opacity-10 p-4">
+        <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-brand-600 rounded-lg mx-auto flex items-center justify-center text-white text-2xl font-bold mb-2">
+                    <i class="fa-solid fa-qrcode"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-800">Hadir.in</h1>
+                <p class="text-slate-500 text-sm">Sistem Manajemen Sekolah</p>
+            </div>
+            <form onsubmit="App.auth.login(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Username / ID</label>
+                    <input type="text" id="login-user" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Username" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1">Password</label>
+                    <input type="password" id="login-pass" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Password" required>
+                </div>
+                <div class="mb-6 flex items-center">
+                    <input type="checkbox" id="show-pass" class="mr-2 h-4 w-4 text-brand-600 focus:ring-brand-500 border-gray-300 rounded" onclick="const p = document.getElementById('login-pass'); p.type = p.type === 'password' ? 'text' : 'password';">
+                    <label for="show-pass" class="text-sm text-gray-600 select-none">Tampilkan Password</label>
+                </div>
+                <button type="submit" class="w-full bg-brand-600 text-white p-3 rounded-lg font-bold hover:bg-brand-700 transition">Masuk</button>
+            </form>
+            <div class="mt-4 text-center text-xs text-gray-400">
+                Connection: Firebase Cloud
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="main-app" class="hidden min-h-screen flex flex-col md:flex-row">
+        <!-- SIDEBAR (ADMIN ONLY) -->
+        <aside id="sidebar" class="hidden md:flex flex-col w-64 bg-slate-900 text-white min-h-screen fixed h-full z-20">
+            <div class="p-6 flex items-center gap-3 border-b border-slate-700">
+                <i class="fa-solid fa-graduation-cap text-brand-500 text-xl"></i>
+                <span class="font-bold text-lg">Hadir.in</span>
+            </div>
+            <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+                <button onclick="App.nav.go('dashboard')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-brand-100 bg-slate-800">
+                    <i class="fa-solid fa-chart-pie w-5"></i> Dashboard
+                </button>
+                <div class="pt-4 text-xs font-bold text-slate-500 uppercase px-3">Manajemen</div>
+                <button onclick="App.nav.go('users')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-slate-300">
+                    <i class="fa-solid fa-users-gear w-5"></i> Pegawai & Akun
+                </button>
+                <button onclick="App.nav.go('subjects')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-slate-300">
+                    <i class="fa-solid fa-book w-5"></i> Mata Pelajaran
+                </button>
+                <button onclick="App.nav.go('students')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-slate-300">
+                    <i class="fa-solid fa-user-graduate w-5"></i> Siswa
+                </button>
+                <button onclick="App.nav.go('classes')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-slate-300">
+                    <i class="fa-solid fa-chalkboard w-5"></i> Kelas
+                </button>
+                <div class="pt-4 text-xs font-bold text-slate-500 uppercase px-3">Operasional</div>
+                <button onclick="App.nav.go('scan_manual')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-slate-300">
+                    <i class="fa-solid fa-qrcode w-5"></i> Scan Absensi
+                </button>
+                <button onclick="App.nav.go('staff_permissions')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-slate-300">
+                    <i class="fa-solid fa-envelope-open-text w-5"></i> Izin Pegawai
+                </button>
+                <div class="pt-4 text-xs font-bold text-slate-500 uppercase px-3">Laporan & Sistem</div>
+                <button onclick="App.nav.go('reports')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-slate-300">
+                    <i class="fa-solid fa-file-export w-5"></i> Pusat Laporan
+                </button>
+                <button onclick="App.nav.go('settings')" class="nav-btn w-full text-left p-3 rounded hover:bg-slate-800 flex items-center gap-3 text-slate-300">
+                    <i class="fa-solid fa-sliders w-5"></i> Pengaturan
+                </button>
+            </nav>
+            <div class="p-4 border-t border-slate-700">
+                <button onclick="App.auth.logout()" class="w-full p-2 bg-red-600 rounded text-sm hover:bg-red-700">Logout</button>
+            </div>
+        </aside>
+
+        <!-- NAVBAR (NON-ADMIN) -->
+        <nav id="navbar" class="hidden md:hidden fixed top-0 w-full bg-brand-600 text-white z-30 shadow-md">
+            <div class="flex justify-between items-center p-4">
+                <div class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-school"></i> Hadir.in
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="App.ui.toggleProfile()" class="text-white"><i class="fa-solid fa-qrcode text-2xl"></i></button>
+                    <button onclick="App.auth.logout()" class="text-white"><i class="fa-solid fa-right-from-bracket text-xl"></i></button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- CONTENT AREA -->
+        <main id="content-area" class="flex-1 bg-gray-100 p-4 md:p-8 md:ml-64 mt-16 md:mt-0 transition-all duration-300">
+            <!-- Dynamic Content -->
+        </main>
+    </div>
+
+    <!-- MODALS -->
+    <div id="scanner-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center">
+        <div class="absolute top-4 right-4 z-50">
+            <button onclick="App.scanner.stop()" class="text-white text-4xl">&times;</button>
+        </div>
+        <div class="bg-white p-2 rounded-lg shadow-lg w-11/12 max-w-md">
+            <div id="reader" class="w-full"></div>
+        </div>
+        <p class="text-white mt-4 text-center">Arahkan kamera ke QR Code</p>
+    </div>
+
+    <div id="modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-up">
+            <div class="bg-brand-600 p-4 flex justify-between items-center text-white">
+                <h3 id="modal-title" class="font-bold text-lg">Title</h3>
+                <button onclick="App.ui.closeModal()" class="hover:text-gray-200"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div id="modal-content" class="p-6 max-h-[70vh] overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- PRINT AREA -->
+    <div id="print-area" class="hidden bg-white"></div>
+
+    <!-- FIREBASE & APP LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-analytics.js";
+        import { getFirestore, collection, addDoc, setDoc, doc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs } 
+        from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+        // CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyClQWxDtsMO7yRTwiaAZEQUzDcFUhxCGTE",
+            authDomain: "hadirin-app-7b428.firebaseapp.com",
+            projectId: "hadirin-app-7b428",
+            storageBucket: "hadirin-app-7b428.firebasestorage.app",
+            messagingSenderId: "1077086241632",
+            appId: "1:1077086241632:web:353096955def742bd89405",
+            measurementId: "G-82LJ5Y3EKF"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+
+        // --- DATABASE WRAPPER ---
+        const DB = {
+            prefix: 'hadirin_',
+            collections: ['users', 'students', 'classes', 'logs', 'journal', 'permissions', 'subjects', 'staff_permissions', 'schedule', 'config'],
+            data: {}, 
+
+            init() {
+                this.collections.forEach(colName => {
+                    const localData = localStorage.getItem(this.prefix + colName);
+                    this.data[colName] = localData ? JSON.parse(localData) : (colName === 'schedule' || colName === 'config' ? {} : []);
+
+                    if (colName === 'schedule' || colName === 'config') {
+                        onSnapshot(doc(db, 'settings', colName), (docSnap) => {
+                            if (docSnap.exists()) {
+                                const val = docSnap.data();
+                                this.data[colName] = val;
+                                localStorage.setItem(this.prefix + colName, JSON.stringify(val));
+                                if(App.state.currentView === 'settings' && App.views.settings) {
+                                    App.views.settings(document.getElementById('content-area'));
+                                }
+                            } else if (colName === 'schedule') {
+                                this.seedSchedule(); 
+                            }
+                        });
+                    } else {
+                        onSnapshot(collection(db, colName), (snapshot) => {
+                            const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                            this.data[colName] = list;
+                            localStorage.setItem(this.prefix + colName, JSON.stringify(list));
+                            if(colName === 'users' && list.length === 0) this.seedUsers();
+                            if (App.state.currentView === colName && App.views[colName]) {
+                                App.views[colName](document.getElementById('content-area'));
+                            }
+                        });
+                    }
+                });
+            },
+
+            get(coll) {
+                if (coll === 'schedule' || coll === 'config') return this.data[coll] || {};
+                return this.data[coll] || [];
+            },
+
+            async add(coll, item) {
+                try {
+                    if (item.id && (coll === 'users' || coll === 'students')) {
+                        await setDoc(doc(db, coll, item.id), item);
+                    } else {
+                        if(!item.id) item.id = Date.now().toString(); 
+                        if(item.id) await setDoc(doc(db, coll, item.id), item); 
+                        else await addDoc(collection(db, coll), item);
+                    }
+                } catch (e) { console.error("Add Error", e); Swal.fire('Error', 'Gagal menyimpan ke server', 'error'); }
+            },
+
+            async update(coll, id, updates) {
+                try {
+                    // Update cache immediately for optimistic UI
+                    if(Array.isArray(this.data[coll])) {
+                         const idx = this.data[coll].findIndex(x => x.id === id);
+                         if(idx !== -1) this.data[coll][idx] = { ...this.data[coll][idx], ...updates };
+                    }
+                    if (coll === 'users' && updates.id && updates.id !== id) {
+                        await setDoc(doc(db, coll, updates.id), updates);
+                        await deleteDoc(doc(db, coll, id));
+                    } else {
+                        await updateDoc(doc(db, coll, id), updates);
+                    }
+                } catch (e) { console.error(e); }
+            },
+
+            async delete(coll, id) { try { await deleteDoc(doc(db, coll, id)); } catch (e) { console.error(e); } },
+
+            async save(coll, data) {
+                if (coll === 'config') {
+                    const cfg = Array.isArray(data) ? data[0] : data;
+                    await setDoc(doc(db, 'settings', 'config'), cfg);
+                } else if (coll === 'schedule') {
+                    await setDoc(doc(db, 'settings', 'schedule'), data);
+                }
+            },
+
+            async seedUsers() {
+                const defaults = [
+                    { id: 'admin', name: 'System Admin', role: 'admin', pass: 'admin123' },
+                    { id: 'kepsek', name: 'Bpk. Kepala Sekolah', role: 'kepsek', pass: '123' },
+                    { id: 'guru', name: 'Ibu Guru Matematika', role: 'guru', pass: '123' },
+                    { id: 'staf', name: 'Staf Tata Usaha', role: 'staf', pass: '123' },
+                    { id: 'ketua', name: 'Ketua Kelas X-A', role: 'ketua_kelas', pass: '123' }
+                ];
+                defaults.forEach(u => this.add('users', u));
+                this.save('config', { schoolName: 'SMK Merdeka Belajar', address: 'Jl. Pendidikan No. 1, Kota Balikpapan' });
+            },
+            async seedSchedule() {
+                const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+                const schedule = { days, toleranceIn: 15, toleranceOut: 0, time: {} };
+                days.forEach(d => schedule.time[d] = { in: '07:30', out: '15:30' });
+                schedule.time['Jumat'] = { in: '07:30', out: '11:30' };
+                this.save('schedule', schedule);
+            }
+        };
+
+        DB.init();
+
+        // --- APP CONTROLLER ---
+        const App = {
+            state: { user: null, currentView: 'dashboard', scannerMode: null, currentReportData: [], journalTemp: [], permissionTemp: [], jurnalFilterClass: '' },
+
+            auth: {
+                check() {
+                    const s = sessionStorage.getItem('hadirin_session');
+                    if (s) { App.state.user = JSON.parse(s); App.ui.initLayout(); } 
+                    else { document.getElementById('login-view').classList.remove('hidden'); document.getElementById('main-app').classList.add('hidden'); }
+                },
+                login(e) {
+                    e.preventDefault();
+                    const u = document.getElementById('login-user').value;
+                    const p = document.getElementById('login-pass').value;
+                    const user = DB.get('users').find(x => x.id === u && x.pass === p);
+                    if (user) {
+                        sessionStorage.setItem('hadirin_session', JSON.stringify(user));
+                        App.state.user = user;
+                        document.getElementById('login-view').classList.add('hidden');
+                        App.ui.initLayout();
+                        Swal.fire({ icon: 'success', title: `Selamat Datang, ${user.name}`, timer: 1500, showConfirmButton: false });
+                    } else {
+                        Swal.fire('Gagal', 'Username/Password salah', 'error');
+                    }
+                },
+                logout() { sessionStorage.removeItem('hadirin_session'); location.reload(); }
+            },
+            ui: {
+                initLayout() {
+                    const user = App.state.user;
+                    const sidebar = document.getElementById('sidebar');
+                    const navbar = document.getElementById('navbar');
+                    const content = document.getElementById('content-area');
+                    document.getElementById('main-app').classList.remove('hidden');
+                    if (user.role === 'admin') {
+                        sidebar.classList.remove('hidden'); sidebar.classList.add('md:flex');
+                        navbar.classList.add('hidden', 'md:hidden');
+                        content.classList.remove('md:ml-0', 'mt-16'); content.classList.add('md:ml-64');
+                        App.nav.go('dashboard');
+                    } else {
+                        sidebar.classList.add('hidden'); sidebar.classList.remove('md:flex');
+                        navbar.classList.remove('hidden', 'md:hidden');
+                        content.classList.add('md:ml-0', 'mt-16'); content.classList.remove('md:ml-64');
+                        App.nav.renderUserDashboard();
+                    }
+                },
+                showModal(title, content) { document.getElementById('modal-title').innerText = title; document.getElementById('modal-content').innerHTML = content; document.getElementById('modal').classList.remove('hidden'); },
+                closeModal() { document.getElementById('modal').classList.add('hidden'); },
+                toggleProfile() { const u = App.state.user; const qr = new QRious({ value: u.id, size: 200 }); App.ui.showModal('Kartu Identitas Digital', `<div class="text-center"><img src="${qr.toDataURL()}" class="mx-auto mb-4 border p-2 rounded"><h2 class="font-bold text-xl">${u.name}</h2><span class="bg-brand-100 text-brand-800 px-3 py-1 rounded-full text-sm uppercase font-bold">${u.role.replace('_', ' ')}</span><p class="text-gray-500 mt-2">ID: ${u.id}</p></div>`); }
+            },
+            nav: {
+                go(view) {
+                    App.state.currentView = view;
+                    const area = document.getElementById('content-area');
+                    if(App.views[view]) App.views[view](area);
+                },
+                renderUserDashboard(timeFilter = 'today') {
+                    const u = App.state.user;
+                    const area = document.getElementById('content-area');
+                    let menuHtml = '';
+                    let statsHtml = '';
+
+                    if (u.role === 'kepsek') {
+                        const logs = DB.get('logs');
+                        const now = new Date();
+                        const todayStr = now.toISOString().split('T')[0];
+                        const oneWeekAgo = new Date(now.setDate(now.getDate() - 7)).toISOString().split('T')[0];
+                        let filteredLogs = timeFilter === 'today' ? logs.filter(l => l.date === todayStr) : logs.filter(l => l.date >= oneWeekAgo);
+                        
+                        const studentsCount = DB.get('students').length;
+                        const usersCount = DB.get('users').filter(u=>u.role!=='admin').length;
+                        const presentStudents = filteredLogs.filter(l => l.role === 'siswa' && l.type === 'CHECK-IN').length;
+                        const presentStaff = filteredLogs.filter(l => l.role !== 'siswa' && l.type === 'CHECK-IN').length;
+
+                        statsHtml = `<div class="mb-6"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-700 text-lg">Informasi Realtime</h3><select onchange="App.nav.renderUserDashboard(this.value)" class="p-2 border rounded bg-white text-sm shadow-sm"><option value="today" ${timeFilter==='today'?'selected':''}>Hari Ini</option><option value="week" ${timeFilter==='week'?'selected':''}>Minggu Ini</option></select></div><div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4"><div class="bg-white p-4 rounded shadow border-l-4 border-blue-500"><div class="text-xs text-gray-500">Siswa Hadir</div><div class="text-2xl font-bold">${presentStudents}/${studentsCount}</div></div><div class="bg-white p-4 rounded shadow border-l-4 border-purple-500"><div class="text-xs text-gray-500">Pegawai Hadir</div><div class="text-2xl font-bold">${presentStaff}/${usersCount}</div></div></div></div>`;
+                        
+                        menuHtml = `<button onclick="App.scanner.start('checkin')" class="bg-green-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-right-to-bracket text-2xl"></i><br>Scan Masuk</button><button onclick="App.scanner.start('checkout')" class="bg-red-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-right-from-bracket text-2xl"></i><br>Scan Pulang</button><button onclick="App.nav.go('staff_permissions')" class="bg-indigo-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-envelope-open-text text-2xl"></i><br>Approval Izin</button><button onclick="App.forms.staffPermission()" class="bg-teal-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-calendar-minus text-2xl"></i><br>Ajukan Izin</button>`;
+                    } else if (u.role === 'guru') {
+                        menuHtml = `<button onclick="App.scanner.start('checkin')" class="bg-green-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-right-to-bracket text-2xl"></i><br>Scan Masuk</button><button onclick="App.scanner.start('checkout')" class="bg-red-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-right-from-bracket text-2xl"></i><br>Scan Pulang</button><button onclick="App.forms.journal()" class="bg-purple-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-book text-2xl"></i><br>Jurnal</button><button onclick="App.forms.piket()" class="bg-orange-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-user-shield text-2xl"></i><br>Piket</button><button onclick="App.forms.staffPermission()" class="bg-teal-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-calendar-minus text-2xl"></i><br>Ajukan Izin</button>`;
+                    } else if (u.role === 'staf') {
+                        menuHtml = `<button onclick="App.scanner.start('checkin')" class="bg-green-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-right-to-bracket text-2xl"></i><br>Scan Masuk</button><button onclick="App.scanner.start('checkout')" class="bg-red-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-right-from-bracket text-2xl"></i><br>Scan Pulang</button><button onclick="App.forms.piket()" class="bg-white p-6 rounded-xl shadow border text-orange-600 hover:bg-orange-50"><i class="fa-solid fa-user-shield text-3xl mb-3"></i><div class="font-bold">Piket</div></button><button onclick="App.forms.staffPermission()" class="bg-teal-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-calendar-minus text-2xl"></i><br>Ajukan Izin</button>`;
+                    } else if (u.role === 'ketua_kelas') {
+                        menuHtml = `<button onclick="App.scanner.start('validate_guru')" class="bg-purple-600 text-white p-6 rounded-xl shadow-lg col-span-2"><i class="fa fa-chalkboard-user text-2xl"></i><br>Scan Konfirmasi Guru</button>`;
+                    }
+                    
+                    area.innerHTML = `<div class="max-w-4xl mx-auto"><div class="bg-white p-6 rounded-xl shadow-sm mb-6"><div><h2 class="text-2xl font-bold">Halo, ${u.name}</h2></div></div>${statsHtml}<div class="grid grid-cols-2 md:grid-cols-4 gap-4">${menuHtml}<button onclick="App.ui.toggleProfile()" class="bg-blue-600 text-white p-6 rounded-xl shadow-lg"><i class="fa fa-qrcode text-2xl"></i><br>ID Saya</button></div>${u.role!=='admin' && u.role!=='ketua_kelas' ? `<div class="mt-8"><h3 class="font-bold mb-4">Riwayat Izin Saya</h3>${App.views.renderMyPermissions()}</div>`:''}</div>`;
+                }
+            },
+            views: {
+                dashboard(t) { t.innerHTML = `<h2 class="text-2xl font-bold mb-4">Dashboard</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="bg-white p-6 rounded shadow border-l-4 border-blue-500">Total User: ${DB.get('users').length}</div><div class="bg-white p-6 rounded shadow border-l-4 border-green-500">Total Siswa: ${DB.get('students').length}</div></div>`; },
+                
+                users(t) { 
+                    const u=DB.get('users'); 
+                    t.innerHTML = `<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Pegawai</h2><div><button onclick="App.logic.deleteSelectedUsers()" class="bg-red-600 text-white px-3 py-1 rounded mr-2"><i class="fa fa-trash"></i> Hapus Terpilih</button><button onclick="App.logic.printSelectedUsers()" class="bg-blue-600 text-white px-3 py-1 rounded mr-2"><i class="fa fa-print"></i> Cetak</button><button onclick="App.forms.user()" class="bg-green-600 text-white px-4 py-1 rounded"><i class="fa fa-plus"></i> Tambah</button></div></div><table class="w-full bg-white shadow rounded"><thead><tr><th class="p-3 text-center"><input type="checkbox" onchange="App.logic.toggleSelectAll(this, 'user-chk')"></th><th class="p-3">Nama</th><th class="p-3">Role</th><th class="p-3 text-right">Aksi</th></tr></thead><tbody>${u.map(x=>`<tr><td class="p-3 text-center"><input type="checkbox" class="user-chk" value="${x.id}"></td><td class="p-3">${x.name}</td><td class="p-3">${x.role}</td><td class="p-3 text-right"><button onclick="App.forms.editUser('${x.id}')" class="text-yellow-600 mr-2"><i class="fa fa-edit"></i></button><button onclick="App.logic.printIDs(['${x.id}'], 'users')" class="text-blue-600 mr-2"><i class="fa fa-print"></i></button><button onclick="App.logic.deleteUser('${x.id}')" class="text-red-500"><i class="fa fa-trash"></i></button></td></tr>`).join('')}</tbody></table>`; 
+                },
+                
+                students(t) { 
+                    const s=DB.get('students'); const c=DB.get('classes');
+                    t.innerHTML = `<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Siswa</h2><div><button onclick="App.logic.deleteSelectedStudents()" class="bg-red-600 text-white px-3 py-1 rounded mr-2"><i class="fa fa-trash"></i> Hapus Terpilih</button><button onclick="App.logic.printAllStudents()" class="bg-slate-700 text-white px-3 py-1 rounded mr-2"><i class="fa fa-print"></i> Cetak Semua</button><button onclick="App.forms.student()" class="bg-green-600 text-white px-3 py-1 rounded"><i class="fa fa-plus"></i> Tambah</button></div></div><table class="w-full bg-white shadow rounded"><thead><tr><th class="p-3 text-center"><input type="checkbox" onchange="App.logic.toggleSelectAll(this, 'student-chk')"></th><th class="p-3">Nama</th><th class="p-3">NIS</th><th class="p-3">Kelas</th><th class="p-3 text-right">Aksi</th></tr></thead><tbody>${s.map(x=>`<tr><td class="p-3 text-center"><input type="checkbox" class="student-chk" value="${x.id}"></td><td class="p-3">${x.name}</td><td class="p-3">${x.id}</td><td class="p-3">${c.find(cl=>cl.id==x.classId)?.name||'-'}</td><td class="p-3 text-right"><button onclick="App.forms.editStudent('${x.id}')" class="text-yellow-600 mr-2"><i class="fa fa-edit"></i></button><button onclick="App.logic.printIDs(['${x.id}'], 'students')" class="text-blue-600 mr-2"><i class="fa fa-print"></i></button><button onclick="App.logic.deleteStudent('${x.id}')" class="text-red-600"><i class="fa fa-trash"></i></button></td></tr>`).join('')}</tbody></table>`; 
+                },
+                
+                subjects(t) { 
+                    const s=DB.get('subjects'); const teachers=DB.get('users').filter(u=>u.role==='guru');
+                    t.innerHTML = `<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Mata Pelajaran</h2><div><button onclick="App.logic.deleteSelectedSubjects()" class="bg-red-600 text-white px-3 py-1 rounded mr-2"><i class="fa fa-trash"></i> Hapus Terpilih</button><button onclick="App.forms.subject()" class="bg-green-600 text-white px-3 py-1 rounded"><i class="fa fa-plus"></i> Tambah</button></div></div><table class="w-full bg-white shadow rounded"><thead><tr><th class="p-3 text-center"><input type="checkbox" onchange="App.logic.toggleSelectAll(this, 'subject-chk')"></th><th class="p-3">Mapel</th><th class="p-3">Guru</th><th class="p-3 text-right">Aksi</th></tr></thead><tbody>${s.map(x=>`<tr><td class="p-3 text-center"><input type="checkbox" class="subject-chk" value="${x.id}"></td><td class="p-3">${x.name}</td><td class="p-3">${teachers.find(t=>t.id===x.teacherId)?.name||'-'}</td><td class="p-3 text-right"><button onclick="App.forms.editSubject('${x.id}')" class="text-yellow-600 mr-2"><i class="fa fa-edit"></i></button><button onclick="App.logic.deleteSubject('${x.id}')" class="text-red-600"><i class="fa fa-trash"></i></button></td></tr>`).join('')}</tbody></table>`; 
+                },
+                
+                classes(t) { const c=DB.get('classes'); t.innerHTML = `<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Kelas</h2><button onclick="App.forms.addClass()" class="bg-blue-600 text-white px-4 py-2 rounded">Tambah</button></div><div class="grid grid-cols-4 gap-4">${c.map(x=>`<div class="bg-white p-4 shadow rounded border-l-4 border-blue-500 flex justify-between"><span>${x.name}</span><button onclick="App.logic.printClassQR('${x.id}','${x.name}')"><i class="fa fa-qrcode"></i></button></div>`).join('')}</div>`; },
+                scan_manual(t) { t.innerHTML = `<h2 class="text-xl font-bold mb-4">Scan Manual</h2><div class="flex gap-4"><button onclick="App.scanner.start('checkin')" class="bg-green-600 text-white p-8 rounded shadow text-xl">Scan Masuk</button><button onclick="App.scanner.start('checkout')" class="bg-red-600 text-white p-8 rounded shadow text-xl">Scan Pulang</button></div>`; },
+                staff_permissions(t) { 
+                    const p = DB.get('staff_permissions'); 
+                    t.innerHTML = `<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Izin Pegawai</h2><button onclick="App.logic.deleteSelectedStaffPermissions()" class="bg-red-600 text-white px-3 py-1 rounded"><i class="fa fa-trash"></i> Hapus Terpilih</button></div><table class="w-full bg-white shadow"><thead><tr><th><input type="checkbox" onchange="App.logic.toggleSelectAll(this, 'staff-perm-chk')"></th><th>Nama</th><th>Alasan</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${p.map(x=>`<tr><td><input type="checkbox" class="staff-perm-chk" value="${x.id}"></td><td>${x.userName}</td><td>${x.reason}</td><td>${x.status}</td><td>${x.status==='Pending'?`<button onclick="App.logic.approveStaffPermission('${x.id}','Approved')" class="text-green-500 mr-2">Acc</button><button onclick="App.logic.approveStaffPermission('${x.id}','Rejected')" class="text-red-500">Tolak</button>`:'-'}</td></tr>`).join('')}</tbody></table>`; 
+                },
+                renderMyPermissions() { 
+                    const myPerms = DB.get('staff_permissions').filter(p => p.userId === App.state.user.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    if(myPerms.length === 0) return '<p class="text-gray-500 italic">Belum ada pengajuan izin.</p>';
+                    return `<div class="bg-white rounded shadow overflow-hidden"><table class="w-full text-left text-sm"><thead class="bg-gray-50"><tr><th class="p-3">Tanggal</th><th class="p-3">Ket</th><th class="p-3">Status</th></tr></thead><tbody>${myPerms.map(p => `<tr><td class="p-3">${new Date(p.startDate).toLocaleDateString()}</td><td class="p-3">${p.duration} Hari - ${p.reason}</td><td class="p-3"><span class="px-2 py-1 rounded text-xs font-bold ${p.status==='Approved'?'bg-green-100 text-green-700':(p.status==='Rejected'?'bg-red-100 text-red-700':'bg-yellow-100 text-yellow-700')}">${p.status}</span></td></tr>`).join('')}</tbody></table></div>`; 
+                },
+                reports(t) {
+                    t.innerHTML = `
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <h2 class="text-2xl font-bold">Pusat Laporan</h2>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <div class="flex border-b overflow-x-auto">
+                            <button onclick="App.views.renderReportTable('absensi_siswa')" class="flex-1 p-4 font-bold text-brand-600 border-b-2 border-brand-600 bg-brand-50 hover:bg-gray-50 focus:outline-none whitespace-nowrap">Absensi Siswa</button>
+                            <button onclick="App.views.renderReportTable('absensi_pegawai')" class="flex-1 p-4 font-bold text-gray-500 hover:text-brand-600 focus:outline-none whitespace-nowrap">Absensi Pegawai</button>
+                            <button onclick="App.views.renderReportTable('rekap')" class="flex-1 p-4 font-bold text-gray-500 hover:text-brand-600 focus:outline-none whitespace-nowrap">Rekap Bulanan</button>
+                            <button onclick="App.views.renderReportTable('jurnal')" class="flex-1 p-4 font-bold text-gray-500 hover:text-brand-600 focus:outline-none whitespace-nowrap">Jurnal Kelas</button>
+                            <button onclick="App.views.renderReportTable('izin')" class="flex-1 p-4 font-bold text-gray-500 hover:text-brand-600 focus:outline-none whitespace-nowrap">Izin Keluar</button>
+                        </div>
+                        <div id="report-toolbar" class="p-4 bg-gray-50 border-b"></div>
+                        <div class="overflow-x-auto min-h-[300px]"><table class="w-full text-left text-sm" id="report-table"></table></div>
+                    </div>`;
+                    App.views.renderReportTable('absensi_siswa');
+                },
+                renderReportTable(type) {
+                    let html = ''; // FIX: Initialization moved to top
+                    App.state.activeReport = type;
+                    const table = document.getElementById('report-table');
+                    const toolbar = document.getElementById('report-toolbar');
+                    document.querySelectorAll('.flex.border-b button').forEach(b => b.className = "flex-1 p-4 font-bold text-gray-500 hover:text-brand-600 focus:outline-none whitespace-nowrap");
+                    if(event && event.target) event.target.className = "flex-1 p-4 font-bold text-brand-600 border-b-2 border-brand-600 bg-brand-50 hover:bg-gray-50 focus:outline-none whitespace-nowrap";
+
+                    // --- REKAP BULANAN (Logic Fix) ---
+                    if(type === 'rekap') {
+                        toolbar.innerHTML = `
+                            <div class="flex flex-wrap gap-4 items-end">
+                                <div><label class="text-xs font-bold block">Bulan</label><input type="month" id="rekap-month" class="border rounded p-1 text-sm" value="${new Date().toISOString().slice(0,7)}"></div>
+                                <div><label class="text-xs font-bold block">Tipe</label><select id="rekap-type" class="border rounded p-1 text-sm" onchange="App.views.loadRekapSubjects(this.value)"><option value="pegawai">Pegawai</option><option value="siswa">Siswa</option></select></div>
+                                <button onclick="App.logic.generateRekap()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm h-8">Tampilkan Rekap</button>
+                                <button onclick="App.logic.printRekap()" class="bg-gray-700 text-white px-3 py-1 rounded text-sm h-8 ml-auto"><i class="fa fa-print"></i> Cetak</button>
+                            </div>
+                            <div id="rekap-selection" class="mt-3 max-h-32 overflow-y-auto border p-2 rounded bg-white hidden"></div>
+                        `;
+                        table.innerHTML = `<tr><td class="p-8 text-center text-gray-500">Silakan pilih Periode dan Tipe, lalu klik Tampilkan Rekap.</td></tr>`;
+                        setTimeout(() => App.views.loadRekapSubjects('pegawai'), 100);
+                        return;
+                    }
+
+                    // --- JURNAL (FILTER) ---
+                    if (type === 'jurnal') {
+                        const classes = DB.get('classes');
+                        const filter = App.state.jurnalFilterClass || '';
+                        toolbar.innerHTML = `
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-bold text-gray-700 capitalize">Laporan Jurnal</h3>
+                                    <select class="border rounded p-1 text-sm" onchange="App.state.jurnalFilterClass = this.value; App.views.renderReportTable('jurnal')">
+                                        <option value="">Semua Kelas</option>
+                                        ${classes.map(c => `<option value="${c.name}" ${c.name===filter?'selected':''}>${c.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="App.logic.deleteSelectedReportItems('jurnal')" class="bg-red-600 text-white px-3 py-1 rounded text-sm"><i class="fa fa-trash"></i> Hapus Terpilih</button>
+                                    <button onclick="App.logic.exportReport('csv')" class="bg-green-600 text-white px-3 py-1 rounded text-sm"><i class="fa fa-file-csv"></i> CSV</button>
+                                    <button onclick="App.logic.exportReport('pdf')" class="bg-red-600 text-white px-3 py-1 rounded text-sm"><i class="fa fa-file-pdf"></i> PDF</button>
+                                </div>
+                            </div>`;
+                        
+                        let data = DB.get('journal');
+                        if (filter) data = data.filter(j => j.className === filter);
+                        // Sort by Class then Date Desc
+                        data.sort((a,b) => {
+                            if(a.className < b.className) return -1;
+                            if(a.className > b.className) return 1;
+                            return new Date(b.timestamp) - new Date(a.timestamp);
+                        });
+                        App.state.currentReportData = data;
+
+                        html = `<thead class="bg-gray-100"><tr><th class="p-3 w-10 text-center"><input type="checkbox" onchange="document.querySelectorAll('.report-chk').forEach(c=>c.checked=this.checked)"></th><th class="p-3">Waktu</th><th class="p-3">Guru</th><th class="p-3">Kelas</th><th class="p-3">Mata Pelajaran</th><th class="p-3">JP</th><th class="p-3">Hadir</th><th class="p-3">Absen</th><th class="p-3 text-center">Validasi</th></tr></thead><tbody>${data.map(r=>{
+                            let absentDetail = '-'; if(r.absentList && r.absentList.length) absentDetail = r.absentList.map(a => `${a.name}(${a.reason})`).join(', '); 
+                            const val = r.confirmed ? `<span class="text-green-600 font-bold">✅ OK <br><span class="text-[10px] text-gray-500">${new Date(r.confirmTime).toLocaleTimeString()}</span></span>` : `<span class="text-red-500 font-bold">❌</span>`;
+                            return `<tr><td class="p-3 text-center"><input type="checkbox" class="report-chk" value="${r.id}"></td><td class="p-3">${new Date(r.timestamp).toLocaleString()}</td><td class="p-3">${r.teacherName}</td><td class="p-3 font-bold">${r.className}</td><td class="p-3">${r.subject}</td><td class="p-3 text-center">${r.jp || '-'}</td><td class="p-3">${r.present}</td><td class="p-3 text-red-600 text-xs">${absentDetail}</td><td class="p-3 text-center">${val}</td></tr>`
+                        }).join('')}</tbody>`;
+                        table.innerHTML = html;
+                        return;
+                    }
+
+                    const stdToolbar = `<div class="flex justify-between items-center"><h3 class="font-bold text-gray-700 capitalize">${type.replace('_',' ')}</h3><div class="flex gap-2"><button onclick="App.logic.deleteSelectedReportItems('${type}')" class="bg-red-600 text-white px-3 py-1 rounded text-sm"><i class="fa fa-trash"></i> Hapus Terpilih</button><button onclick="App.logic.exportReport('csv')" class="bg-green-600 text-white px-3 py-1 rounded text-sm"><i class="fa fa-file-csv"></i> CSV</button><button onclick="App.logic.exportReport('pdf')" class="bg-red-600 text-white px-3 py-1 rounded text-sm"><i class="fa fa-file-pdf"></i> PDF</button></div></div>`;
+                    toolbar.innerHTML = stdToolbar;
+
+                    if (type.startsWith('absensi')) {
+                        const roleFilter = type === 'absensi_siswa' ? 'siswa' : 'pegawai';
+                        const logs = DB.get('logs').filter(l => roleFilter === 'siswa' ? l.role === 'siswa' : l.role !== 'siswa');
+                        const grouped = App.views.groupLogs(logs);
+                        App.state.currentReportData = Object.values(grouped);
+                        html = `<thead class="bg-gray-100"><tr><th class="p-3 w-10 text-center"><input type="checkbox" onchange="document.querySelectorAll('.report-chk').forEach(c=>c.checked=this.checked)"></th><th class="p-3">Tanggal</th><th class="p-3">Nama</th><th class="p-3">Kelas/Role</th><th class="p-3">Masuk</th><th class="p-3">Pulang</th><th class="p-3">Status</th></tr></thead><tbody>${App.state.currentReportData.map(r => { 
+                            const student = DB.get('students').find(s => s.name === r.name);
+                            const cls = student ? DB.get('classes').find(c=>c.id==student.classId)?.name : (r.role||'-');
+                            return `<tr><td class="p-3 text-center"><input type="checkbox" class="report-chk" value='${JSON.stringify(r.ids)}'></td><td class="p-3">${r.date}</td><td class="p-3 font-bold">${r.name}</td><td class="p-3 uppercase text-xs">${cls}</td><td class="p-3 text-green-700 font-mono">${r.in}</td><td class="p-3 text-blue-700 font-mono">${r.out}</td><td class="p-3"><span class="${r.status==='LATE'?'text-red-600':'text-green-600'} font-bold">${r.status}</span></td></tr>` }).join('')}</tbody>`;
+                    
+                    } else if (type === 'izin') {
+                        // Added Fix: use r.createdAt for "Waktu Input"
+                        html = `<thead class="bg-gray-100"><tr><th class="p-3 w-10 text-center"><input type="checkbox" onchange="document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = this.checked)"></th><th class="p-3">Waktu Input</th><th class="p-3">Siswa</th><th class="p-3">Keluar</th><th class="p-3">Kembali</th><th class="p-3">Alasan</th><th class="p-3">Status</th></tr></thead><tbody>${DB.get('permissions').map(r=>`<tr><td class="p-3 text-center"><input type="checkbox" class="perm-checkbox" value="${r.id}"></td><td class="p-3 text-xs text-gray-500">${new Date(r.createdAt || Date.now()).toLocaleString()}</td><td class="p-3 font-bold">${r.studentName}</td><td class="p-3 text-green-600 font-mono">${r.timeOut}</td><td class="p-3">${r.timeBack}</td><td class="p-3">${r.reason}</td><td class="p-3"><span class="px-2 py-1 rounded text-xs ${r.status === 'Sudah Kembali' ? 'bg-green-100 text-green-700' : (r.status === 'Tidak Kembali' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700')}">${r.status || 'Keluar'}</span></td></tr>`).join('')}</tbody>`;
+                    }
+                    table.innerHTML = html;
+                },
+                groupLogs(logs) { const data = {}; logs.forEach(l => { const k = `${l.date}_${l.name}`; if(!data[k]) data[k] = {date:l.date, name:l.name, role:l.role, in:'-', out:'-', status:'-', ids:[]}; data[k].ids.push(l.id); const t = new Date(l.timestamp).toLocaleTimeString(); if(l.type==='CHECK-IN') { data[k].in=t; data[k].status=l.status; } else data[k].out=t; }); return data; },
+                loadRekapSubjects(type) { const container = document.getElementById('rekap-selection'); container.classList.remove('hidden'); let list = type === 'pegawai' ? DB.get('users').filter(u => u.role !== 'admin') : DB.get('students'); container.innerHTML = `<div class="flex gap-2 items-center mb-2 border-b pb-1"><input type="checkbox" onchange="document.querySelectorAll('.rekap-chk').forEach(c=>c.checked=this.checked)"> <span class="text-xs font-bold">Pilih Semua</span></div><div class="grid grid-cols-2 md:grid-cols-4 gap-2">${list.map(i => `<label class="text-xs flex items-center gap-1"><input type="checkbox" class="rekap-chk" value="${i.name}"> ${i.name}</label>`).join('')}</div>`; },
+                settings(t) { /* same settings code */ 
+                    const config = DB.get('config') || { schoolName: '', address: '' }; let schedule = DB.get('schedule');
+                    if (!schedule || !schedule.days) { schedule = { days: ['Senin','Selasa','Rabu','Kamis','Jumat'], time:{}, toleranceIn:0, toleranceOut:0 }; schedule.days.forEach(d => schedule.time[d] = {in:'07:30', out:'15:30'}); } if(!schedule.time) schedule.time = {};
+                    t.innerHTML = `<h2 class="text-2xl font-bold mb-4">Pengaturan</h2><div class="grid md:grid-cols-2 gap-4"><div class="bg-white p-4 rounded shadow"><h3 class="font-bold mb-2">Profil</h3><form onsubmit="App.logic.saveConfig(event)"><input name="schoolName" value="${config.schoolName || ''}" class="w-full border p-2 mb-2" placeholder="Nama Sekolah"><textarea name="address" class="w-full border p-2 mb-2">${config.address || ''}</textarea><button class="bg-blue-600 text-white px-4 py-2 rounded">Simpan</button></form><button onclick="App.logic.printOfficeQR()" class="mt-4 bg-gray-800 text-white px-4 py-2 w-full">Cetak QR Kantor</button></div><div class="bg-white p-4 rounded shadow"><h3 class="font-bold mb-2">Jadwal & Toleransi</h3><form onsubmit="App.logic.saveSchedule(event)"><div class="grid grid-cols-2 gap-2 mb-2"><input type="number" name="toleranceIn" value="${schedule.toleranceIn||0}" placeholder="Tol. Masuk (mnt)" class="border p-2"><input type="number" name="toleranceOut" value="${schedule.toleranceOut||0}" placeholder="Tol. Pulang (mnt)" class="border p-2"></div><div id="schedule-rows" class="max-h-60 overflow-y-auto mb-2">${(schedule.days || []).map(d => { const t = schedule.time[d] || {in:'07:00', out:'15:00'}; return `<div class="flex gap-2 mb-1"><input name="days[]" value="${d}" class="w-20 border p-1"><input type="time" name="in[]" value="${t.in}" class="border p-1"><input type="time" name="out[]" value="${t.out}" class="border p-1"></div>`; }).join('')}</div><button type="button" onclick="App.logic.addScheduleRow()" class="text-green-600 mr-2">+ Baris</button><button class="bg-blue-600 text-white px-4 py-2 rounded">Simpan Jadwal</button></form></div></div>`;
+                }
+            },
+
+            forms: {
+                // ... Existing Forms ...
+                user() { App.ui.showModal('Tambah Pegawai', `<form onsubmit="App.logic.addUser(event)"><input name="name" placeholder="Nama" class="w-full border p-2 mb-2" required><select name="role" class="w-full border p-2 mb-2"><option value="guru">Guru</option><option value="staf">Staf</option><option value="kepsek">Kepsek</option><option value="ketua_kelas">Ketua Kelas</option><option value="admin">Admin</option></select><input name="username" placeholder="ID" class="w-full border p-2 mb-2" required><input name="password" type="password" placeholder="Pass" class="w-full border p-2 mb-2" required><button class="w-full bg-blue-600 text-white p-2">Simpan</button></form>`); },
+                editUser(id) { const u = DB.get('users').find(x => x.id === id); if(!u) return; App.ui.showModal('Edit Pegawai', `<form onsubmit="App.logic.updateUser(event, '${id}')"><label class="block text-xs font-bold mb-1">Nama Lengkap</label><input name="name" value="${u.name}" class="w-full border p-2 mb-2 rounded" required><label class="block text-xs font-bold mb-1">Role</label><select name="role" class="w-full border p-2 mb-2 rounded"><option value="guru" ${u.role==='guru'?'selected':''}>Guru</option><option value="staf" ${u.role==='staf'?'selected':''}>Staf</option><option value="kepsek" ${u.role==='kepsek'?'selected':''}>Kepsek</option><option value="ketua_kelas" ${u.role==='ketua_kelas'?'selected':''}>Ketua Kelas</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select><label class="block text-xs font-bold mb-1">Username / ID (Login)</label><input name="username" value="${u.id}" class="w-full border p-2 mb-2 rounded" required><label class="block text-xs font-bold mb-1">Password</label><input name="password" value="${u.pass}" class="w-full border p-2 mb-4 rounded" required><button class="w-full bg-blue-600 text-white p-2 rounded">Update Data</button></form>`); },
+                
+                editStudent(id) { const s = DB.get('students').find(x => x.id === id); if(!s) return; const c = DB.get('classes').map(x=>`<option value="${x.id}" ${x.id===s.classId?'selected':''}>${x.name}</option>`).join(''); App.ui.showModal('Edit Siswa', `<form onsubmit="App.logic.updateStudent(event, '${id}')"><input name="name" value="${s.name}" class="w-full border p-2 mb-2"><input name="nis" value="${s.id}" class="w-full border p-2 mb-2"><select name="classId" class="w-full border p-2 mb-2">${c}</select><button class="bg-blue-600 text-white p-2 w-full">Update</button></form>`); },
+                
+                student() { const c = DB.get('classes').map(x=>`<option value="${x.id}">${x.name}</option>`).join(''); App.ui.showModal('Tambah Siswa', `<form onsubmit="App.logic.addStudent(event)"><input name="name" placeholder="Nama" class="w-full border p-2 mb-2" required><input name="nis" placeholder="NIS" class="w-full border p-2 mb-2" required><select name="classId" class="w-full border p-2 mb-2">${c}</select><button class="w-full bg-blue-600 text-white p-2">Simpan</button></form>`); },
+                addClass() { App.ui.showModal('Tambah Kelas', `<form onsubmit="App.logic.addClass(event)"><input name="name" placeholder="Nama Kelas" class="w-full border p-2 mb-2" required><button class="w-full bg-blue-600 text-white p-2">Simpan</button></form>`); },
+                piket() { App.ui.showModal('Menu Piket', `<div class="grid grid-cols-2 gap-4"><button onclick="App.scanner.start('checkin_siswa')" class="bg-blue-100 text-blue-700 p-4 rounded text-center hover:bg-blue-200"><i class="fa fa-user-check text-2xl mb-2"></i><br>Cek Absensi Siswa</button><button onclick="App.forms.permission()" class="bg-orange-100 text-orange-700 p-4 rounded text-center hover:bg-orange-200"><i class="fa fa-person-walking-arrow-right text-2xl mb-2"></i><br>Izin Keluar</button><button onclick="App.forms.permissionList()" class="bg-purple-100 text-purple-700 p-4 rounded text-center col-span-2"><i class="fa fa-list-check text-2xl mb-2"></i><br>Daftar Status Izin</button><button onclick="App.forms.manualStudentAttendance()" class="bg-teal-100 text-teal-700 p-4 rounded text-center col-span-2"><i class="fa fa-pen-to-square text-2xl mb-2"></i><br>Absen Manual</button></div>`); },
+                permissionList() { const today = new Date().toISOString().split('T')[0]; const perms = DB.get('permissions').filter(p => p.createdAt && p.createdAt.startsWith(today)); let html = `<div class="overflow-auto max-h-60">${perms.map(x=>`<div class="border-b p-2 flex justify-between"><span>${x.studentName} (${x.status})</span><div><button onclick="App.logic.updatePermission('${x.id}','Sudah Kembali')" class="text-green-500 mr-2">Kembali</button><button onclick="App.logic.updatePermission('${x.id}','Tidak Kembali')" class="text-red-500">Tidak</button></div></div>`).join('')}</div>`; App.ui.showModal('List Izin', html); },
+                permission() {
+                    App.state.permissionTemp = [];
+                    const s = DB.get('students');
+                    App.ui.showModal('Form Izin Keluar', `
+                        <form onsubmit="App.logic.submitPermission(event)">
+                            <div class="mb-3">
+                                <label class="block text-xs font-bold mb-1">Pilih Siswa (Bisa Lebih dari satu)</label>
+                                <div class="flex gap-2"><select id="perm-student-select" class="flex-1 border p-2 rounded"><option value="">Cari Nama...</option>${s.map(x => `<option value="${x.id}">${x.name} (${x.id})</option>`).join('')}</select><button type="button" onclick="App.logic.addPermissionStudent()" class="bg-green-600 text-white px-3 rounded">+</button></div>
+                                <ul id="perm-student-list" class="mt-2 bg-gray-50 border rounded p-2 text-xs min-h-[40px]"><li class="text-center text-gray-400">Belum ada siswa dipilih</li></ul>
+                            </div>
+                            <input type="text" name="reason" placeholder="Keperluan" class="w-full p-2 border rounded mb-3" required>
+                            
+                            <!-- RESTORED ESTIMASI KEMBALI -->
+                            <label class="text-xs text-gray-500">Estimasi Kembali</label>
+                            <input type="time" name="timeBack" class="w-full p-2 border rounded mb-3" required>
+                            
+                            <button class="w-full bg-orange-500 text-white p-2 rounded">Catat Izin</button>
+                        </form>
+                    `);
+                },
+                staffPermission() { App.ui.showModal('Ajukan Izin', `<form onsubmit="App.logic.submitStaffPermission(event)"><input type="date" name="startDate" class="w-full border p-2 mb-2"><input type="number" name="duration" placeholder="Durasi (Hari)" class="w-full border p-2 mb-2"><textarea name="reason" placeholder="Alasan" class="w-full border p-2 mb-2"></textarea><button class="bg-teal-600 text-white w-full p-2">Kirim</button></form>`); },
+                manualStudentAttendance() { const s=DB.get('students'); App.ui.showModal('Absen Manual', `<form onsubmit="App.logic.submitManualStudentAttendance(event)"><select name="studentId" class="w-full border p-2 mb-2">${s.map(x=>`<option value="${x.id}">${x.name}</option>`).join('')}</select><button class="bg-blue-600 text-white w-full p-2">Absen Masuk</button></form>`); },
+                
+                subject() { const t=DB.get('users').filter(u=>u.role==='guru'); App.ui.showModal('Tambah Mata Pelajaran', `<form onsubmit="App.logic.addSubject(event)"><label class="block text-sm font-bold mb-1">Nama Mata Pelajaran</label><input name="name" placeholder="Contoh: Matematika Wajib" class="w-full border p-2 mb-3 rounded" required><label class="block text-sm font-bold mb-1">Guru Pengampu</label><select name="teacherId" class="w-full border p-2 mb-3 rounded" required><option value="">Pilih Guru...</option>${t.map(x=>`<option value="${x.id}">${x.name}</option>`).join('')}</select><button class="w-full bg-brand-600 text-white p-2 rounded">Simpan</button></form>`); },
+                editSubject(id) { const s = DB.get('subjects').find(x => x.id === id); if(!s) return; const t=DB.get('users').filter(u=>u.role==='guru'); App.ui.showModal('Edit Mapel', `<form onsubmit="App.logic.updateSubject(event, '${id}')"><input name="name" value="${s.name}" class="w-full border p-2 mb-2"><select name="teacherId" class="w-full border p-2 mb-2">${t.map(x=>`<option value="${x.id}" ${x.id===s.teacherId?'selected':''}>${x.name}</option>`).join('')}</select><button class="bg-blue-600 text-white w-full p-2">Update</button></form>`); },
+
+                journal() { 
+                    App.state.journalTemp = []; 
+                    const classes = DB.get('classes');
+                    const mySubjects = DB.get('subjects').filter(s => s.teacherId === App.state.user.id);
+                    App.ui.showModal('Jurnal Mengajar', `
+                        <form onsubmit="App.logic.submitJournal(event)">
+                            <div class="mb-3"><label class="block text-sm font-bold mb-1">Kelas</label><select id="j-class" name="classId" class="w-full p-2 border rounded" onchange="App.forms.loadStudentsForJournal(this.value)" required><option value="">Pilih Kelas</option>${classes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
+                            <div class="mb-3"><label class="block text-sm font-bold mb-1">Mata Pelajaran</label><select name="subject" class="w-full border p-2 rounded" required>${mySubjects.length ? mySubjects.map(s => `<option value="${s.name}">${s.name}</option>`).join('') : '<option value="">Tidak ada mapel terdaftar</option>'}</select>${mySubjects.length === 0 ? '<p class="text-xs text-red-500 mt-1">Hubungi admin untuk mendaftarkan mapel Anda.</p>' : ''}</div>
+                            <div class="mb-3"><label class="block text-sm font-bold mb-1">Jumlah JP</label><input type="number" name="jp" class="w-full border p-2 rounded" placeholder="Contoh: 2" required></div>
+                            <div class="mb-3"><label class="block text-xs font-bold mb-1">Jumlah Hadir</label><input name="present" type="number" class="w-full border p-2" required></div>
+                            <div class="border-t pt-2 mt-2"><label class="block text-xs font-bold mb-2">Input Siswa Tidak Hadir (Opsional)</label><div class="flex gap-2 mb-2"><select id="j-student-select" class="flex-1 border p-2 text-sm"><option value="">Pilih Siswa...</option></select><select id="j-reason-select" class="w-24 border p-2 text-sm"><option value="Sakit">Sakit</option><option value="Izin">Izin</option><option value="Alpa">Alpa</option></select><button type="button" onclick="App.logic.addAbsentStudent()" class="bg-green-600 text-white px-3 rounded font-bold">+</button></div><ul id="j-absent-list" class="text-xs text-gray-600 bg-gray-50 p-2 rounded min-h-[50px]"><li class="text-center italic text-gray-400">Belum ada siswa absen</li></ul></div><button class="w-full bg-purple-600 text-white p-2 mt-4 rounded font-bold">Simpan Jurnal</button>
+                        </form>`); 
+                },
+                loadStudentsForJournal(classId) { const studs = DB.get('students').filter(s => s.classId == classId); const sel = document.getElementById('j-student-select'); sel.innerHTML = '<option value="">Pilih Siswa...</option>' + studs.map(s => `<option value="${s.name}">${s.name}</option>`).join(''); App.state.journalTemp = []; document.getElementById('j-absent-list').innerHTML = '<li class="text-center italic text-gray-400">Belum ada siswa absen</li>'; }
+            },
+
+            logic: {
+                addUser(e) { e.preventDefault(); const f=e.target; DB.add('users', {id:f.username.value, name:f.name.value, role:f.role.value, pass:f.password.value}); App.ui.closeModal(); },
+                updateUser(e, oldId) { e.preventDefault(); const f=e.target; const newId=f.username.value; if(oldId !== newId) { if(DB.get('users').find(u => u.id === newId)) return Swal.fire('Error', 'Username/ID sudah digunakan', 'error'); } DB.update('users', oldId, {id: newId, name: f.name.value, role: f.role.value, pass: f.password.value}); App.ui.closeModal(); App.nav.go('users'); },
+                addStudent(e) { e.preventDefault(); const f=e.target; DB.add('students', {id:f.nis.value, name:f.name.value, classId:f.classId.value}); App.ui.closeModal(); },
+                updateStudent(e, oldId) { e.preventDefault(); const f=e.target; DB.update('students', oldId, {id:f.nis.value, name:f.name.value, classId:f.classId.value}); App.ui.closeModal(); App.nav.go('students'); },
+                addClass(e) { e.preventDefault(); DB.add('classes', {name:e.target.name.value}); App.ui.closeModal(); },
+                deleteUser(id) { if(confirm('Hapus?')) { DB.delete('users', id); App.nav.go('users'); } },
+                deleteStudent(id) { if(confirm('Hapus?')) { DB.delete('students', id); App.nav.go('students'); } },
+                saveConfig(e) { e.preventDefault(); const f=e.target; DB.save('config', {schoolName:f.schoolName.value, address:f.address.value}); Swal.fire('Saved'); },
+                saveSchedule(e) { e.preventDefault(); const f=e.target; const days = Array.from(f.querySelectorAll('[name="days[]"]')).map(i=>i.value); const ins = Array.from(f.querySelectorAll('[name="in[]"]')).map(i=>i.value); const outs = Array.from(f.querySelectorAll('[name="out[]"]')).map(i=>i.value); const time = {}; days.forEach((d,i) => time[d]={in:ins[i], out:outs[i]}); DB.save('schedule', {days, time, toleranceIn:parseInt(f.toleranceIn.value), toleranceOut:parseInt(f.toleranceOut.value)}); Swal.fire('Saved'); },
+                addScheduleRow() { document.getElementById('schedule-rows').insertAdjacentHTML('beforeend', `<div class="flex gap-2 mb-1"><input name="days[]" class="w-20 border p-1"><input type="time" name="in[]" class="border p-1"><input type="time" name="out[]" class="border p-1"></div>`); },
+                addSubject(e) { e.preventDefault(); const f=e.target; DB.add('subjects', { name: f.name.value, teacherId: f.teacherId.value }); App.ui.closeModal(); App.nav.go('subjects'); },
+                updateSubject(e, id) { e.preventDefault(); const f=e.target; DB.update('subjects', id, {name:f.name.value, teacherId:f.teacherId.value}); App.ui.closeModal(); App.nav.go('subjects'); },
+                deleteSubject(id) { if(confirm('Hapus Mata Pelajaran?')) { DB.delete('subjects', id); App.nav.go('subjects'); } },
+                
+                addPermissionStudent() { const sel = document.getElementById('perm-student-select'); const id = sel.value; const name = sel.options[sel.selectedIndex].text; if(!id) return; if(App.state.permissionTemp.find(s => s.id === id)) return; App.state.permissionTemp.push({id, name}); App.logic.renderPermissionList(); sel.value = ""; },
+                renderPermissionList() { const ul = document.getElementById('perm-student-list'); if(App.state.permissionTemp.length === 0) { ul.innerHTML = '<li class="text-center text-gray-400">Belum ada siswa dipilih</li>'; return; } ul.innerHTML = App.state.permissionTemp.map((s, idx) => `<li class="flex justify-between items-center border-b py-1"><span>${s.name}</span><button type="button" onclick="App.state.permissionTemp.splice(${idx},1); App.logic.renderPermissionList()" class="text-red-500 font-bold px-2">&times;</button></li>`).join(''); },
+                submitPermission(e) { 
+                    e.preventDefault(); const f=e.target; 
+                    if(App.state.permissionTemp.length === 0) return Swal.fire('Error', 'Pilih minimal satu siswa', 'error');
+                    const now = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    App.state.permissionTemp.forEach(s => { const studentObj = DB.get('students').find(x => x.id === s.id); const cls = studentObj ? DB.get('classes').find(c => c.id == studentObj.classId)?.name : '-'; DB.add('permissions',{ id: Date.now() + Math.random().toString(16).slice(2), createdAt: new Date().toISOString(), studentName: studentObj ? studentObj.name : s.name, className: cls, timeOut: now, timeBack: f.timeBack.value, reason: f.reason.value, status: 'Keluar' }); });
+                    App.ui.closeModal(); Swal.fire('Oke','Izin dicatat','success'); 
+                },
+                updatePermission(id, status) { 
+                    if(confirm('Ubah status menjadi ' + status + '?')) { 
+                        // Optimistic update
+                        const item = DB.data['permissions'].find(p => p.id === id);
+                        if (item) item.status = status;
+                        DB.update('permissions', id, { status: status }); 
+                        App.forms.permissionList(); // Refresh modal
+                    } 
+                },
+                submitStaffPermission(e) { e.preventDefault(); const f=e.target; DB.add('staff_permissions', {id: Date.now().toString(), userId: App.state.user.id, userName: App.state.user.name, role: App.state.user.role, startDate:f.startDate.value, duration:f.duration.value, reason:f.reason.value, status:'Pending', createdAt: new Date().toISOString()}); App.ui.closeModal(); Swal.fire('Sent'); },
+                approveStaffPermission(id, status) { DB.update('staff_permissions', id, {status}); App.views.staff_permissions(document.getElementById('content-area')); },
+                deleteSelectedStaffPermissions() { const c=document.querySelectorAll('.staff-perm-chk:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('staff_permissions', x.value)); },
+                submitManualStudentAttendance(e) { e.preventDefault(); App.logic.processScan(e.target.studentId.value); App.ui.closeModal(); },
+                
+                deleteSelectedReportItems(type) { const c=document.querySelectorAll('.report-chk:checked'); if(c.length && confirm('Hapus?')) { if(type.startsWith('absensi')) c.forEach(x=> JSON.parse(x.value).forEach(id=>DB.delete('logs', id))); else if(type==='jurnal') c.forEach(x=>DB.delete('journal', x.value)); else if(type==='izin') c.forEach(x=>DB.delete('permissions', x.value)); Swal.fire('Deleted'); App.views.renderReportTable(type); } },
+                deleteSelectedPermissions() { const c=document.querySelectorAll('.perm-checkbox:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('permissions', x.value)); App.views.renderReportTable('izin'); },
+                deleteSelectedSubjects() { const c=document.querySelectorAll('.subject-chk:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('subjects', x.value)); App.nav.go('subjects'); },
+                deleteSelectedStudents() { const c=document.querySelectorAll('.student-chk:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('students', x.value)); App.nav.go('students'); },
+                deleteSelectedUsers() { const c=document.querySelectorAll('.user-chk:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('users', x.value)); App.nav.go('users'); },
+                
+                // --- FIXED REKAP LOGIC ---
+                generateRekap() {
+                    const month = document.getElementById('rekap-month').value;
+                    const type = document.getElementById('rekap-type').value;
+                    const checkboxes = document.querySelectorAll('.rekap-chk:checked');
+                    if(checkboxes.length === 0) return Swal.fire('Info', 'Pilih minimal satu nama', 'info');
+                    
+                    const selectedNames = Array.from(checkboxes).map(cb => cb.value);
+                    const logs = DB.get('logs').filter(l => l.date.startsWith(month));
+                    const journals = DB.get('journal').filter(j => j.timestamp.startsWith(month)); 
+                    const staffPerms = DB.get('staff_permissions').filter(p => p.createdAt.startsWith(month) && p.status === 'Approved');
+
+                    const summary = selectedNames.map(name => {
+                        const myLogs = logs.filter(l => l.name === name && l.type === 'CHECK-IN');
+                        let hadir = myLogs.length;
+                        let telat = myLogs.filter(l => l.status === 'LATE').length;
+                        let sakit = 0, izin = 0, alpa = 0, tidakHadir = 0;
+
+                        if (type === 'siswa') {
+                            journals.forEach(j => {
+                                if (j.absentList && Array.isArray(j.absentList)) {
+                                    const record = j.absentList.find(a => a.name === name);
+                                    if (record) {
+                                        if (record.reason === 'Sakit') sakit++;
+                                        else if (record.reason === 'Izin') izin++;
+                                        else if (record.reason === 'Alpa') alpa++;
+                                    }
+                                }
+                            });
+                        } else {
+                            // Staff Logic
+                            const myPerms = staffPerms.filter(p => p.userName === name);
+                            myPerms.forEach(p => {
+                                tidakHadir += parseInt(p.duration);
+                            });
+                        }
+
+                        return { name, hadir, telat, sakit, izin, alpa, tidakHadir };
+                    });
+
+                    const table = document.getElementById('report-table');
+                    let headerHTML = '', rowHTML = '';
+                    if (type === 'siswa') {
+                        headerHTML = `<thead class="bg-gray-800 text-white"><tr><th class="p-3">Nama</th><th class="p-3">Hadir</th><th class="p-3">Sakit</th><th class="p-3">Izin</th><th class="p-3">Alpa</th><th class="p-3">Terlambat</th></tr></thead>`;
+                        rowHTML = summary.map(s => `<tr><td class="p-3 font-bold border-b">${s.name}</td><td class="p-3 border-b text-green-600">${s.hadir}</td><td class="p-3 border-b">${s.sakit}</td><td class="p-3 border-b">${s.izin}</td><td class="p-3 border-b text-red-600 font-bold">${s.alpa}</td><td class="p-3 border-b text-yellow-600">${s.telat}</td></tr>`).join('');
+                    } else {
+                        headerHTML = `<thead class="bg-gray-800 text-white"><tr><th class="p-3">Nama</th><th class="p-3">Hadir</th><th class="p-3">Terlambat</th><th class="p-3">Tidak Hadir (Izin/Cuti)</th></tr></thead>`;
+                        rowHTML = summary.map(s => `<tr><td class="p-3 font-bold border-b">${s.name}</td><td class="p-3 border-b text-green-600">${s.hadir}</td><td class="p-3 border-b text-yellow-600">${s.telat}</td><td class="p-3 border-b text-red-600">${s.tidakHadir}</td></tr>`).join('');
+                    }
+                    table.innerHTML = headerHTML + `<tbody>${rowHTML}</tbody>`;
+                },
+                printRekap() {
+                    const content = document.getElementById('report-table').outerHTML;
+                    const title = "Rekap Absensi Periode " + document.getElementById('rekap-month').value;
+                    const config = DB.get('config') || { schoolName: 'Sekolah', address: '-' };
+                    const win = window.open('', '', 'width=1123,height=794'); // Landscape Approx
+                    win.document.write(`<html><head><title>${title}</title><script src="https://cdn.tailwindcss.com"><\/script></head><body class="p-8">
+                        <div class="text-center border-b-2 border-black pb-4 mb-6">
+                            <h2 class="text-3xl font-bold uppercase">${config.schoolName}</h2>
+                            <p class="text-lg">${config.address}</p>
+                        </div>
+                        <h3 class="text-xl font-bold mb-4">${title}</h3>
+                        ${content}
+                    </body></html>`);
+                    win.document.close();
+                    win.print();
+                },
+
+                // --- RESTORED: JOURNAL STUDENT ADD LOGIC ---
+                addAbsentStudent() { 
+                    const nameSel = document.getElementById('j-student-select'); 
+                    const reasonSel = document.getElementById('j-reason-select'); 
+                    if(!nameSel.value) return; 
+                    App.state.journalTemp.push({ name: nameSel.value, reason: reasonSel.value }); 
+                    App.logic.renderAbsentList(); 
+                    nameSel.value = ""; 
+                },
+                renderAbsentList() { 
+                    const ul = document.getElementById('j-absent-list'); 
+                    if(App.state.journalTemp.length === 0) { ul.innerHTML = '<li class="text-center italic text-gray-400">Belum ada siswa absen</li>'; return; } 
+                    ul.innerHTML = App.state.journalTemp.map((item, index) => `<li class="flex justify-between border-b py-1"><span>${item.name} <span class="text-[10px] bg-red-100 text-red-600 px-1 rounded">${item.reason}</span></span><button type="button" onclick="App.state.journalTemp.splice(${index},1); App.logic.renderAbsentList()" class="text-red-500 font-bold">&times;</button></li>`).join(''); 
+                },
+                submitJournal(e) { e.preventDefault(); const f=e.target; const c=DB.get('classes').find(x=>x.id==f.classId.value); DB.add('journal',{timestamp: new Date().toISOString(), teacherName: App.state.user.name, className: c.name, subject: f.subject.value, jp: f.jp.value, present: f.present.value, absent: App.state.journalTemp.length, absentList: App.state.journalTemp, confirmed: false}); App.ui.closeModal(); Swal.fire('Oke','Jurnal dicatat','success'); },
+                
+                printOfficeQR() { const area = document.getElementById('print-area'); const qr = new QRious({ value: 'KANTOR_QR', size: 300 }); area.innerHTML = `<div class="office-qr-page"><h1 class="text-4xl font-bold mb-4">ABSENSI PEGAWAI KANTOR</h1><h2 class="text-xl mb-8 text-gray-600">Scan untuk Masuk & Pulang</h2><img src="${qr.toDataURL()}" style="border: 4px solid black;"><p class="mt-8 text-sm">Tempatkan di area meja piket atau pintu masuk kantor.</p></div>`; area.classList.remove('hidden'); setTimeout(() => window.print(), 500); },
+                deleteSelectedReportItems(type) { const c=document.querySelectorAll('.report-chk:checked'); if(c.length && confirm('Hapus?')) { if(type.startsWith('absensi')) c.forEach(x=> JSON.parse(x.value).forEach(id=>DB.delete('logs', id))); else if(type==='jurnal') c.forEach(x=>DB.delete('journal', x.value)); else if(type==='izin') c.forEach(x=>DB.delete('permissions', x.value)); Swal.fire('Deleted'); App.views.renderReportTable(type); } },
+                deleteSelectedPermissions() { const c=document.querySelectorAll('.perm-checkbox:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('permissions', x.value)); App.views.renderReportTable('izin'); },
+                deleteSelectedSubjects() { const c=document.querySelectorAll('.subject-chk:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('subjects', x.value)); App.nav.go('subjects'); },
+                deleteSelectedStudents() { const c=document.querySelectorAll('.student-chk:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('students', x.value)); App.nav.go('students'); },
+                deleteSelectedUsers() { const c=document.querySelectorAll('.user-chk:checked'); if(c.length && confirm('Hapus?')) c.forEach(x=>DB.delete('users', x.value)); App.nav.go('users'); },
+                
+                toggleSelectAll(src, cls) { document.querySelectorAll(`.${cls}`).forEach(c=>c.checked=src.checked); },
+                printSelectedUsers() { const ids=Array.from(document.querySelectorAll('.user-chk:checked')).map(c=>c.value); if(ids.length) App.logic.printIDs(ids, 'users'); },
+                
+                // --- FIXED PRINT ID LAYOUT ---
+                printIDs(ids, type) { 
+                    const items = DB.get(type).filter(x=>ids.includes(x.id)); 
+                    const config = DB.get('config')[0] || { schoolName: 'Sekolah' };
+                    const area = document.getElementById('print-area');
+                    const chunkSize = 6;
+                    let html = '';
+                    
+                    for (let i = 0; i < items.length; i += chunkSize) {
+                        const chunk = items.slice(i, i + chunkSize);
+                        html += `<div class="print-page">`;
+                        chunk.forEach(item => {
+                            const qr = new QRious({ value: item.id, size: 250 });
+                            html += `
+                                <div class="id-card-wrapper">
+                                    <div class="id-card">
+                                        <div class="id-header"></div>
+                                        <div class="id-content">
+                                            <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-1 shadow-md text-blue-800 text-2xl"><i class="fa-solid fa-graduation-cap"></i></div>
+                                            <h3 class="text-[10px] font-bold text-gray-700 tracking-wide px-2 w-full truncate text-center mb-4">${config.schoolName.substring(0, 30)}</h3>
+                                            
+                                            <div class="w-20 h-20 bg-gray-100 rounded-full border-4 border-white shadow-lg overflow-hidden mb-2 flex items-center justify-center text-gray-400"><i class="fa-solid fa-user text-4xl"></i></div>
+                                            
+                                            <h2 class="text-sm font-bold text-gray-900 leading-tight px-2 w-full truncate text-center">${item.name}</h2>
+                                            <p class="text-[10px] text-blue-600 font-bold uppercase mb-2">${item.role ? item.role.replace('_',' ') : 'SISWA'}</p>
+                                            
+                                            <img src="${qr.toDataURL()}" width="80" height="80" class="border p-1 rounded">
+                                            <p class="text-[9px] font-mono text-gray-500 mt-1">${item.id}</p>
+                                        </div>
+                                    </div>
+                                </div>`;
+                        });
+                        html += `</div>`;
+                    }
+                    area.innerHTML = html;
+                    setTimeout(() => window.print(), 800);
+                },
+                printAllStudents() { App.logic.printIDs(DB.get('students').map(s=>s.id), 'students'); },
+                printClassQR(id, name) { const qr = new QRious({value:id}); document.getElementById('print-area').innerHTML = `<img src="${qr.toDataURL()}">`; setTimeout(()=>window.print(), 500); },
+                
+                // --- UPDATED EXPORT REPORT (Header & Landscape) ---
+                exportReport(format) {
+                    const type = App.state.activeReport; if(type === 'rekap') return; 
+                    const config = DB.get('config')[0] || { schoolName: 'Nama Sekolah', address: 'Alamat Sekolah' };
+                    if (format === 'csv') { const ws = XLSX.utils.table_to_sheet(document.getElementById('report-table')); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Laporan"); XLSX.writeFile(wb, `Laporan_${type}.xlsx`); } else { const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4'); doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.text(config.schoolName.toUpperCase(), 148.5, 15, { align: 'center' }); doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text(config.address, 148.5, 22, { align: 'center' }); doc.setLineWidth(0.5); doc.line(10, 26, 287, 26); doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text(`LAPORAN ${type.toUpperCase().replace('_', ' ')}`, 14, 35); doc.autoTable({ html: '#report-table', startY: 40, theme: 'grid', headStyles: { fillColor: [44, 62, 80] }, styles: { fontSize: 9 } }); doc.save(`Laporan_${type}.pdf`); }
+                },
+                
+                processScan(text) { 
+                    App.scanner.stop();
+                    if(text==='KANTOR_QR') text=App.state.user.id;
+                    const mode = App.state.scannerMode;
+                    if(mode==='validate_guru') { 
+                        const g = DB.get('users').find(u=>u.id===text && u.role==='guru'); 
+                        if(g) {
+                            const journals = DB.get('journal');
+                            const today = new Date().toISOString().split('T')[0];
+                            const idx = journals.findIndex(j => j.teacherName === g.name && j.timestamp.startsWith(today) && !j.confirmed);
+                            if(idx !== -1) {
+                                journals[idx].confirmed = true; 
+                                journals[idx].confirmTime = new Date().toISOString(); 
+                                DB.save('journal', journals);
+                                Swal.fire('Valid', `Guru ${g.name} terkonfirmasi`, 'success');
+                            } else { Swal.fire('Info', 'Belum ada jurnal atau sudah divalidasi', 'info'); }
+                        } else Swal.fire('Error', 'Bukan Guru', 'error'); 
+                        return; 
+                    }
+                    const now = new Date();
+                    const today = now.toISOString().split('T')[0];
+                    const type = (mode==='checkin'||mode==='checkin_siswa') ? 'CHECK-IN' : 'CHECK-OUT';
+                    let status = 'ON-TIME';
+                    
+                    const daysMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                    const dayName = daysMap[now.getDay()];
+                    const scheduleConfig = DB.get('schedule') || {};
+                    const timeConfig = scheduleConfig.time || {};
+                    const todaySch = timeConfig[dayName] || null;
+                    const schIn = todaySch ? todaySch.in : '07:00';
+                    const schOut = todaySch ? todaySch.out : '15:00';
+                    const tolIn = scheduleConfig.toleranceIn || 0;
+                    const tolOut = scheduleConfig.toleranceOut || 0;
+
+                    const getMinutes = (timeStr) => { if (!timeStr) return 0; const [h, m] = timeStr.split(':').map(Number); return h * 60 + m; };
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                    const inMinutes = getMinutes(schIn);
+                    const outMinutes = getMinutes(schOut);
+
+                    if (type === 'CHECK-IN') {
+                        if (currentMinutes > (inMinutes + tolIn)) status = 'LATE';
+                        const exists = DB.get('logs').find(l => l.date === today && l.name === text && l.type === 'CHECK-IN'); 
+                        if(exists) { Swal.fire('Info', 'Sudah Masuk', 'info'); return; }
+                    } else {
+                        if (currentMinutes < (outMinutes - tolOut)) status = 'EARLY';
+                        const exists = DB.get('logs').find(l => l.date === today && l.name === text && l.type === 'CHECK-OUT');
+                        if(exists) { Swal.fire('Info', 'Sudah Pulang', 'info'); return; }
+                    }
+
+                    DB.add('logs', { timestamp: now.toISOString(), date: today, name: text, role: 'unknown', type: type, status: status });
+                    Swal.fire('Success', type, 'success');
+                }
+            },
+
+            scanner: { 
+                obj: null,
+                stop() { if(this.obj) { this.obj.stop().then(() => { this.obj.clear(); this.obj = null; document.getElementById('scanner-modal').classList.add('hidden'); }).catch(err => { console.error("Stop failed", err); document.getElementById('scanner-modal').classList.add('hidden'); }); } else { document.getElementById('scanner-modal').classList.add('hidden'); } },
+                start(mode) { App.state.scannerMode = mode; document.getElementById('scanner-modal').classList.remove('hidden'); if(this.obj) { try { this.obj.clear(); } catch(e){} } this.obj = new Html5Qrcode("reader"); this.obj.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (txt) => App.logic.processScan(txt)).catch(err => { Swal.fire('Error', 'Kamera tidak dapat diakses: ' + err, 'error'); this.stop(); }); }
+            },
+            
+            utils: {}
+        };
+
+        window.App = App;
+        window.addEventListener('DOMContentLoaded', () => {
+            DB.init(); 
+            App.auth.check();
+        });
+    </script>
+</body>
+</html>
